@@ -1,0 +1,10 @@
+user backend
+topic read sentinel/sensors/+/telemetry
+topic read sentinel/vision/+/events
+topic write sentinel/health
+
+user sensors
+topic write sentinel/sensors/+/telemetry
+
+user vision
+topic write sentinel/vision/+/events

@@ -1,127 +1,115 @@
 # THEWATCHER
 
-Projet du Workshop EPSI BAC+4 2026 — **Mission Sentinel-X : l’Avant-Poste Industriel du Futur**.
+Projet du Workshop EPSI BAC+4 2026, Mission Sentinel-X : l’Avant-Poste Industriel du Futur.
 
-Sentinel-X est un prototype de supervision cyber-physique développé pendant un sprint de quatre jours. Il rassemble les mesures de capteurs, l’analyse vidéo locale, les résultats des modèles IA et les informations de sécurité dans une application de monitoring unique.
+**The Thinker** rassemble les mesures de capteurs simulés, l’analyse vidéo, les alertes et la santé des services dans un dashboard unique.
 
-L’objectif est de livrer une démonstration intégrée et stable, avec des choix techniques simples, utiles et défendables devant un jury.
+L’équipe ne disposant ni de matériel ni de boîtier, le prototype sera entièrement logiciel. Les sources physiques seront simulées ou rejouées ; les échanges réseau, le stockage, les traitements IA et les contrôles de sécurité devront fonctionner réellement.
 
-> État du dépôt : structure initiale et documentation. Les fonctionnalités décrites ci-dessous sont les objectifs du projet ; elles ne sont pas encore implémentées.
+> État actuel : environnement Docker Compose, broker MQTT sécurisé, API de réception, stockage PostgreSQL, Prometheus et Grafana disponibles. Les simulateurs et les modèles de détection restent à développer et connecter par les collègues. Aucun résultat IA n’est généré par cette infrastructure.
 
-## Organisation du dépôt
+## Organisation
 
-Un seul dépôt commun à l’équipe, avec un dossier par partie du projet.
+Quatre dossiers, sans frontend maison ni service supplémentaire de type « Engine ».
 
 | Dossier | Contenu |
 | --- | --- |
-| [`modeles-ia/`](modeles-ia/) | Vision, analyse des séries temporelles, préparation des données et évaluation des modèles |
-| [`database/`](database/) | Schéma de données, migrations et historique des mesures, événements et alertes |
-| [`api/`](api/) | Réception et validation des données, API, authentification et commandes autorisées |
-| [`front/`](front/) | Dashboard, graphiques, caméra, incidents et état des services |
-| [`iot/`](iot/) | Firmware ESP8266 en C++, capteurs, OLED et actionneurs |
-| [`infra/`](infra/) | Déploiement, conteneurs, broker MQTT, réseau et monitoring |
-| [`cyber/`](cyber/) | Configuration de sécurité, vérifications et rapport de pentest |
-| [`docs/`](docs/) | Architecture, contrats d’interface, organisation du sprint et livrables |
+| [simulation/](simulation/) | Capteurs virtuels, scénarios reproductibles, sources vidéo et actionneurs simulés |
+| [backend/](backend/) | Ingestion, API et stockage ; réception des résultats IA des collègues |
+| [infra/](infra/) | Docker Compose, Mosquitto, PostgreSQL, Prometheus et Grafana provisionné |
+| [docs/](docs/) | Architecture, interfaces, protocole de démonstration et résultats |
 
-## Fonctionnement général
+Les responsabilités de `api`, `database` et `modeles-ia` sont regroupées dans `backend`. `iot` est remplacé par `simulation`. Le travail de `cyber` rejoint `infra` et les contrôles applicatifs du backend ; la sécurité reste transverse.
+
+## Architecture visée
 
 ```mermaid
 flowchart LR
-    IoT[Capteurs / ESP8266] -->|MQTTS| Broker[Broker MQTT]
-    Broker --> API[Ingestion / API]
-    API --> DB[(Base de données interne)]
-    API -->|Mesures validées| IA[Modèles IA]
-    Webcam[Webcam USB locale] --> IA
-    IA -->|Résultats / événements| API
-    Security[Logs cyber / santé des services] --> API
-    API --> Front[Dashboard]
-    Front -->|Commandes authentifiées| API
-    API -->|Commandes autorisées| Broker
-    Broker -->|MQTTS| IoT
+    Sim[Capteurs virtuels] -->|MQTTS| MQTT[Mosquitto]
+    MQTT --> Backend[API : ingestion et stockage]
+    Video[Composant IA du collègue] -->|Événements analysés| Backend
+    Backend --> DB[(PostgreSQL)]
+    Infra[Logs et santé des services] --> Backend
+    Backend -->|Scrape /metrics| Prom[Prometheus]
+    Prom --> Grafana[Grafana]
+    DB -->|Lecture seule| Grafana
 ```
 
-Les capteurs ne communiquent jamais directement avec la base de données. L’ingestion valide les messages et ajoute l’heure de réception avant leur stockage et leur traitement. L’heure de mesure est conservée lorsqu’elle est disponible.
+Les données passent par l’ingestion avant stockage. Elle valide les messages, conserve le temps de mesure simulé et ajoute l’heure réelle de réception. Le simulateur et le navigateur n’accèdent jamais directement à la base.
 
-La webcam USB est branchée directement au serveur local. Les modèles IA y analysent les images et l’évolution des mesures. Leurs résultats sont transmis à l’API pour être affichés et historisés.
+Les composants des collègues produisent les mesures et les résultats d’analyse ; le backend les reçoit et les stocke. Il n’implémente pas leurs algorithmes. Les étiquettes de scénario servent à l’évaluation et ne doivent pas être fournies aux modèles comme variables prédictives.
 
-Les alertes peuvent rapprocher plusieurs observations : présence dans une zone surveillée, dérive environnementale et événement cyber. Cette logique reste dans les modules existants, sans service supplémentaire dédié. Une donnée indisponible doit apparaître comme telle et ne pas être interprétée comme une situation normale.
+## Stack proposée
 
-## Fonctionnalités visées
-
-- Afficher les mesures des capteurs en temps réel et leur historique.
-- Montrer le retour caméra et les événements de présence détectés.
-- Analyser l’évolution des capteurs pour détecter des anomalies temporelles.
-- Afficher les résultats IA et les causes des alertes.
-- Conserver un historique des incidents et permettre leur acquittement.
-- Superviser la disponibilité des services et la fraîcheur des données.
-- Afficher les événements cyber disponibles : refus d’authentification, messages invalides et événements du pentest.
-- Commander les LEDs ou le buzzer via une API sécurisée, avec retour d’état.
-
-L’acquittement d’une alerte indique sa prise en compte ; il ne signifie pas que sa cause a disparu.
-
-## Contraintes du sujet et choix ouverts
-
-Le sujet officiel EPSI reste la référence. Les exemples techniques ne deviennent pas automatiquement des obligations.
-
-| Élément | Cadre retenu |
+| Besoin | Proposition minimale |
 | --- | --- |
-| Firmware | C++ sur ESP8266, demandé explicitement |
-| Vision | Script Python local, webcam USB directement connectée au serveur, détection d’une présence humaine suspecte |
-| Performance vidéo | Traitement attendu inférieur à 100 ms par trame ; résolution à adapter et performance à mesurer |
-| Analyse des capteurs | Détection d’anomalies temporelles ; de simples seuils statiques ne suffisent pas |
-| Serveur | PC d’un membre ou Raspberry Pi 5, deux variantes autorisées |
-| Infrastructure | Docker Compose et Mosquitto prescrits dans la section Infra du sujet, retenus comme base |
-| Sécurité | Chiffrement des flux IoT, durcissement et audit offensif encadré |
-| Modèles IA | À choisir et à évaluer ; YOLO, OpenCV, Isolation Forest et Random Forest sont des exemples |
-| Application et stockage | Framework frontend, backend et base de données à choisir avec l’équipe |
+| Mesures synthétiques | Python + NumPy, scénarios JSON et graine fixée |
+| Transport sécurisé | Client Paho MQTT et Mosquitto avec TLS |
+| Vidéo | Fichier local lu avec OpenCV, puis modèle de détection de personnes à choisir |
+| Analyse temporelle | Variables sur fenêtres et modèle statistique ou scikit-learn, évalué face à une référence simple |
+| Backend | FastAPI, validation et accès au stockage |
+| Stockage | PostgreSQL : mesures, événements et rejets persistants |
+| Monitoring | Grafana : source PostgreSQL + source Prometheus |
+| Déploiement | Docker Compose pour les services et volumes |
 
-L’interconnexion fonctionnelle des différentes parties est un prérequis de la démonstration. Le boîtier physique, l’OLED et les actionneurs font partie du travail à intégrer.
+La séparation API / IA / stockage reste logique dans le code. Si nécessaire, la vidéo sera traitée dans un processus distinct pour ne pas bloquer l’API, sans créer un nouveau dossier racine.
 
-## Sécurité transverse
+## Scénarios visés
 
-- Chiffrer les échanges et authentifier les équipements et utilisateurs.
-- Valider les formats, tailles et valeurs des messages ; limiter le débit entrant.
-- Autoriser les commandes côté backend et journaliser leur exécution.
-- Garder la base de données sur le réseau interne, sans port publié sur le réseau de la table.
-- Limiter les ports ouverts, les accès réseau et les privilèges des services.
-- Utiliser SSH par clé et isoler les conteneurs.
-- Fournir les secrets à l’exécution ; ne jamais versionner mots de passe, jetons ou clés privées.
-- Collecter les traces utiles au pentest dans le périmètre autorisé du workshop.
-
-Le dashboard ne doit afficher un état de sécurité comme vérifié que si une vérification réelle et datée existe.
-
-## Travail en équipe
-
-Les filières DEV, IA, INFRA et CYBER contribuent au même système. Chaque partie précise ses données d’entrée, ses sorties et ses dépendances avant son intégration.
-
-- `main` contient le travail intégré.
-- Créer des branches courtes par tâche, par exemple `feat/vision-presence`, `feat/api-mesures` ou `feat/dashboard`.
-- Faire des commits ciblés et proposer les changements par pull request.
-- Documenter les variables de configuration et commandes de lancement lors de l’ajout d’un composant.
-- Vérifier régulièrement le parcours complet capteur → API → affichage, puis intégrer l’IA et les commandes.
-
-## Sprint et démonstration
-
-| Jour | Priorité |
+| Entrée simulée ou rejouée | Résultat réellement observable |
 | --- | --- |
-| Lundi | Valider avec les coachs l’architecture réseau et les flux, répartir les tâches et définir les interfaces |
-| Mardi | Développer les composants et établir une première chaîne fonctionnelle |
-| Mercredi | Intégrer les mesures réelles, l’IA et le dashboard ; tourner le teaser |
-| Jeudi | Stabiliser, réaliser le pentest encadré, corriger et remettre les livrables numériques |
-| Vendredi | Présenter le prototype et effectuer la démonstration en direct |
+| Mesures normales avec bruit | Courbes et absence d’alerte injustifiée |
+| Hausse progressive et corrélée température / gaz | Détection temporelle, explication et délai mesuré |
+| Vidéo d’une personne entrant dans une zone | Détection calculée sur les images et événement horodaté |
+| Arrêt des publications d’un device virtuel | État dégradé, jamais assimilé à un état normal |
+| Message mal formé ou identifiants de test invalides | Rejet effectif et trace de validation ou d’authentification |
+| Commande autorisée depuis le dashboard | État virtuel LED/buzzer et accusé de réception |
 
-La démonstration doit montrer une mesure réelle, une détection IA, une alerte compréhensible et une action autorisée. Les scénarios simulés ou rejoués doivent être annoncés comme tels.
+Afficher explicitement le mode simulation/rejeu. Un événement IA prédéfini peut tester l’interface, mais ne prouve pas le fonctionnement d’un modèle. Les observations peuvent être rapprochées par zone et par temps dans le backend, sans composant supplémentaire.
 
-## Livrables
+## Sécurité et fiabilité
 
-- Prototype physique fonctionnel : boîtier conçu sous Fusion 360, fabrication et gravure Fablab, électronique intégrée.
-- Dossier technique PDF : réseau, câblage, sécurité, documentation IA, audit et poster A3 en annexe.
-- Support PowerPoint pour la soutenance.
-- Teaser vertical « Sentinel Drop » en MP4 H.264, de 60 secondes maximum.
-- Archive du code documentée et sans secrets.
+- Chiffrer les flux, vérifier les certificats et authentifier les clients.
+- Valider formats, tailles et valeurs ; limiter les débits et les droits MQTT.
+- Faire passer les commandes par l’API avec autorisation et journalisation.
+- Garder PostgreSQL sur le réseau Docker interne, les secrets hors du dépôt et les privilèges limités.
+- Exposer seulement les ports nécessaires ; documenter firewall et SSH par clé lorsque utilisés.
+- Afficher des états de sécurité réellement vérifiés et datés.
+- Réserver les essais cyber au système local autorisé.
+- Distinguer risque, fraîcheur des données, acquittement et résolution.
 
-Les fichiers numériques suivent le nommage `Workshop2026-M1-G<n>` précisé dans le sujet et sont remis jeudi soir à l’échéance fixée par les coachs.
+## Résultats et démonstration
+
+Conserver un identifiant d’exécution, le scénario, sa graine, ses paramètres et les versions utilisées. Exporter mesures et détections en CSV/JSON, puis les graphiques pour le dossier.
+
+Évaluer les faux positifs, incidents manqués, délais de détection, latences de bout en bout et temps de traitement vidéo. Séparer les scénarios de réglage de ceux d’évaluation, avec d’autres graines et amplitudes.
+
+Les résultats synthétiques valident le fonctionnement dans les scénarios testés, pas la fiabilité industrielle ou la calibration de capteurs physiques.
+
+Voir le [guide de simulation](docs/simulation.md) pour les technologies, figures et déroulé de démo.
+
+## Adaptation du sujet
+
+Le sujet original demande notamment ESP8266 avec firmware C++, webcam USB, OLED, actionneurs et boîtier fabriqué. Ces éléments ne seront pas réalisés matériellement. Faire confirmer par les coachs les modalités d’évaluation adaptées ; aucune dérogation déjà accordée n’est présumée ici.
+
+La vision Python, l’analyse temporelle dépassant les simples seuils statiques, la supervision et les échanges sécurisés restent les objectifs logiciels. Docker Compose et Mosquitto, prescrits dans la section Infra, sont conservés. Les modèles cités dans le sujet restent des exemples. L’objectif inférieur à 100 ms par image reste à mesurer.
+
+## Équipe et livrables
+
+Les contributions directes sur `main` sont autorisées selon le choix de l’équipe ; branches et pull requests sont facultatives. Synchroniser le dépôt avant de travailler et faire des commits ciblés.
+
+Priorité : simulateur → MQTT → backend → dashboard, puis IA, commandes et sécurité. Réserver du temps pour rejouer les scénarios, exporter les résultats et préparer la présentation.
+
+Préparer le dossier technique avec schémas et poster A3, le support de soutenance, le teaser vertical et l’archive du code. Signaler aux coachs les éléments matériels absents et les adaptations des livrables.
 
 ## Installation
 
-Aucune application exécutable n’est encore fournie. Les prérequis, configurations et commandes de lancement seront ajoutés dans chaque dossier au fur et à mesure de l’implémentation.
+Docker Desktop démarré ou Docker Engine avec Compose v2 est nécessaire.
+
+```sh
+docker compose up --build -d
+```
+
+Ouvrir **http://localhost:3000** (Grafana). L’API reste sur **http://localhost:8080**. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
+
+Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API événements, l’accès Grafana, les contrôles de santé et les limites de cette configuration locale.

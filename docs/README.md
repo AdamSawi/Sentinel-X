@@ -1,7 +1,10 @@
-# Documentation commune
+# Documentation
 
-Ce dossier accueille les schémas d’architecture et de câblage, les contrats d’interface, le backlog, les décisions techniques et la préparation des livrables.
+- [Docker, monitoring et connexion des composants](docker.md)
+- [Simulation, technologies et démonstration](simulation.md)
+- À ajouter : architecture réseau, contrats MQTT/API, décisions et backlog.
+- À produire : résultats CSV/JSON, graphiques, protocole d’évaluation, rapport cyber et supports du jury.
 
-Pour chaque échange, définir la source, le destinataire, le transport, le format, les unités, les horodatages et le comportement en cas d’erreur ou de perte de connexion.
+Chaque échange précise source, destination, format, unités, cadence, horodatages et comportement en cas d’erreur.
 
-Le sujet officiel EPSI est la référence pour les exigences. Distinguer les obligations, les exemples proposés et les choix de l’équipe ; faire clarifier les formulations ambiguës par les coachs.
+Documenter l’absence de matériel, les adaptations demandées et les décisions des coachs sans présenter une validation non obtenue comme acquise.
