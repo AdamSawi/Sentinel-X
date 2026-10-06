@@ -106,10 +106,50 @@ Préparer le dossier technique avec schémas et poster A3, le support de soutena
 
 Docker Desktop démarré ou Docker Engine avec Compose v2 est nécessaire.
 
+Depuis la racine du dépôt, construire et démarrer les services :
+
 ```sh
-docker compose up --build -d
+docker compose up --build -d --remove-orphans --wait
 ```
 
-Ouvrir **http://localhost:3000** (Grafana). L’API reste sur **http://localhost:8080**. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
+Vérifier leur état et consulter les logs :
+
+```sh
+docker compose ps
+docker compose logs --tail=50 backend mqtt postgres prometheus grafana
+```
+
+Arrêter les services en conservant les données et les identifiants :
+
+```sh
+docker compose down
+```
+
+### Ports et accès
+
+| Service | Adresse locale | Port |
+| --- | --- | --- |
+| Grafana | http://localhost:3000 | 3000 |
+| API | http://localhost:8080 | 8080 |
+| MQTT TLS | localhost | 8883 |
+| MQTT WebSocket TLS | wss://localhost:9001 | 9001 |
+| Prometheus | Interne Docker uniquement | 9090, non publié |
+| PostgreSQL | Interne Docker uniquement | 5432, non publié |
+
+Les ports publiés écoutent uniquement sur 127.0.0.1. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
+
+### Identifiants Grafana de l’instance actuelle
+
+- URL : **http://localhost:3000**
+- Utilisateur : **admin**
+- Mot de passe : `c5da48c1a93da9c6b378852ac211e3d79fd5d0f698506535`
+
+Ce mot de passe correspond à l’instance existante. Une nouvelle installation avec des volumes neufs génère son propre mot de passe ; pour le récupérer :
+
+```sh
+docker compose exec mqtt cat /run/sentinel/grafana-admin.password
+```
+
+Après connexion, ouvrir le dashboard **Sentinel-X · Analyse et sécurité** dans le dossier **Sentinel-X**.
 
 Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API événements, l’accès Grafana, les contrôles de santé et les limites de cette configuration locale.
