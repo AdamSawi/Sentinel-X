@@ -1,7 +1,11 @@
-# Infrastructure
+# Infrastructure et cybersécurité
 
-Ce dossier accueille Docker Compose, la configuration Mosquitto, le réseau et les outils de supervision.
+Regroupe déploiement et responsabilités de l’ancien dossier `cyber`.
 
-Prévoir un déploiement reproductible sur le serveur local retenu, des volumes persistants, des contrôles de santé, une gestion des redémarrages et des limites de conservation des logs.
+Préparer Docker Compose, Mosquitto avec TLS et authentification, volumes persistants, contrôles de santé et gestion des logs. Exposer seulement les ports nécessaires ; SQLite reste interne au backend.
 
-Documenter les ports nécessaires et le plan d’adressage. La base reste sur le réseau interne des services. Coordonner les certificats, droits et règles réseau avec la partie cyber.
+Documenter certificats, droits MQTT, secrets fournis à l’exécution, isolation, firewall et SSH si utilisés. Les contrôles applicatifs de validation et d’autorisation sont dans le backend.
+
+Démontrer de vrais refus de connexion, rejets de messages et pertes/reprises de services locaux. Collecter les événements constatés plutôt que des logs prédéfinis présentés comme des preuves.
+
+Conserver le périmètre autorisé du pentest, les observations, corrections et vérifications sans secrets. Aucun déploiement exécutable n’est encore fourni.

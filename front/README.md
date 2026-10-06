@@ -1,9 +1,11 @@
 # Frontend
 
-Ce dossier accueille l’interface web de supervision Sentinel-X.
+Dashboard unique : mesures simulées, historiques, vidéo rejouée, résultats IA, incidents, santé des services et événements cyber.
 
-Vues prévues : mesures en temps réel, historiques, retour caméra, résultats IA, incidents, santé des services et événements de sécurité.
+Proposition minimale : HTML/CSS/JavaScript avec Plotly. React reste possible si l’équipe le maîtrise déjà.
 
-Les commandes passent exclusivement par l’API sécurisée. L’interface distingue une alerte active, une alerte acquittée et une donnée indisponible ou périmée.
+Afficher le mode simulation/rejeu. Une représentation 2D suffit pour montrer la zone, les présences et les états virtuels LED/buzzer. Les résultats et confirmations de commande viennent du backend.
 
-Le framework reste à choisir. Documenter ici les prérequis et commandes de développement lors de l’ajout de l’application.
+Toutes les commandes passent par l’API authentifiée. Distinguer demandé et confirmé, acquitté et résolu, normal et indisponible. Prévoir des graphiques exportables pour le dossier.
+
+Aucune interface exécutable n’est encore présente ; les commandes seront documentées avec le code.
