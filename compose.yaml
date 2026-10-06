@@ -1,0 +1,62 @@
+name: sentinel-x
+
+x-runtime: &runtime
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: 5m
+      max-file: '3'
+
+services:
+  mqtt:
+    <<: *runtime
+    build: ./infra
+    ports:
+      - '127.0.0.1:${MQTT_PORT:-8883}:8883'
+      - '127.0.0.1:${MQTT_WS_PORT:-9001}:9001'
+    volumes:
+      - credentials:/run/sentinel
+      - mqtt-data:/mosquitto/data
+    healthcheck:
+      test: ['CMD-SHELL', 'mosquitto_pub -h localhost -p 8883 --cafile /run/sentinel/server.crt -u backend -P "$$(cat /run/sentinel/backend.password)" -t sentinel/health -m ok']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+  backend:
+    <<: *runtime
+    build: ./backend
+    depends_on:
+      mqtt:
+        condition: service_healthy
+    volumes:
+      - credentials:/run/sentinel:ro
+      - database:/data
+    healthcheck:
+      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/health", timeout=3)']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    read_only: true
+    tmpfs:
+      - /tmp
+  front:
+    <<: *runtime
+    build: ./front
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${WEB_PORT:-8080}:8080'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+volumes:
+  credentials:
+  database:
+  mqtt-data:

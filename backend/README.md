@@ -1,16 +1,18 @@
 # Backend
 
-Regroupe l’ingestion, l’API, les modèles IA, les alertes et le stockage, auparavant séparés dans `api`, `modeles-ia` et `database`.
+Regroupe l’ingestion, l’API et le stockage. Les simulateurs et les modèles restent développés par les collègues ; ce service reçoit leurs mesures et résultats.
 
-Proposition : Python, FastAPI et SQLite. Organiser le code par responsabilité au fil de l’implémentation.
+Implémentation : Python, FastAPI, Paho MQTT et SQLite.
 
 - Valider les mesures MQTT et conserver les horodatages.
-- Analyser réellement les fenêtres temporelles et les images des vidéos rejouées.
+- Recevoir les événements d’analyse sans exécuter de modèle.
 - Stocker mesures, événements, incidents et commandes.
-- Exposer les données au frontend et autoriser les commandes avec retour d’état.
-- Détecter les sources périmées, journaliser les rejets et distinguer acquittement et résolution.
-- Fournir exports CSV/JSON et mesures de performance.
+- Exposer les données au frontend ; les commandes restent à intégrer ultérieurement.
+- Fournir les heures de réception et les contrôles de santé ; compter les rejets depuis le démarrage.
+- Retourner les historiques récents en JSON. Acquittement et exports dédiés restent à développer.
 
 Les modèles ne reçoivent pas les étiquettes de scénario. SQLite reste interne au backend et persiste via un volume ; documenter les migrations et les limites de concurrence si l’architecture évolue.
 
-Aucun backend exécutable n’est encore présent. Ajouter configuration, contrats d’interface et commandes avec le code.
+L’API de réception est implémentée dans `app.py` : validation, persistance SQLite, abonnement MQTT TLS et routes de lecture pour le monitoring. Elle ne contient aucun modèle d’analyse ou de détection.
+
+Lancement et formats attendus : [guide Docker](../docs/docker.md). Vérification de l’intégration : `docker compose exec backend python smoke.py` (fixtures de test explicitement marquées simulées).

@@ -6,7 +6,7 @@ Projet du Workshop EPSI BAC+4 2026, Mission Sentinel-X : l’Avant-Poste Industr
 
 L’équipe ne disposant ni de matériel ni de boîtier, le prototype sera entièrement logiciel. Les sources physiques seront simulées ou rejouées ; les échanges réseau, le stockage, les traitements IA et les contrôles de sécurité devront fonctionner réellement.
 
-> État actuel : structure et documentation uniquement. Aucun simulateur, modèle, backend ou dashboard exécutable n’est encore fourni. Les technologies ci-dessous sont des propositions à confirmer avec l’équipe.
+> État actuel : environnement Docker Compose, broker MQTT sécurisé, API de réception, stockage SQLite et monitoring disponibles. Les simulateurs et les modèles de détection restent à développer et connecter par les collègues. Aucun résultat IA n’est généré par cette infrastructure.
 
 ## Organisation
 
@@ -15,7 +15,7 @@ Cinq dossiers, sans service supplémentaire de type « Engine ».
 | Dossier | Contenu |
 | --- | --- |
 | [simulation/](simulation/) | Capteurs virtuels, scénarios reproductibles, sources vidéo et actionneurs simulés |
-| [backend/](backend/) | Ingestion, API, modèles IA, alertes et stockage |
+| [backend/](backend/) | Ingestion, API et stockage ; réception des résultats IA des collègues |
 | [front/](front/) | Dashboard, graphiques, commandes et visualisation du dispositif virtuel |
 | [infra/](infra/) | Docker Compose, Mosquitto, TLS, réseau, sécurité et supervision |
 | [docs/](docs/) | Architecture, interfaces, protocole de démonstration et résultats |
@@ -40,7 +40,7 @@ flowchart LR
 
 Les données passent par l’ingestion avant stockage. Elle valide les messages, conserve le temps de mesure simulé et ajoute l’heure réelle de réception. Le simulateur et le navigateur n’accèdent jamais directement à la base.
 
-Le simulateur produit les entrées ; le backend calcule les anomalies. Les étiquettes de scénario servent à l’évaluation et ne doivent pas être fournies aux modèles comme variables prédictives.
+Les composants des collègues produisent les mesures et les résultats d’analyse ; le backend les reçoit et les stocke. Il n’implémente pas leurs algorithmes. Les étiquettes de scénario servent à l’évaluation et ne doivent pas être fournies aux modèles comme variables prédictives.
 
 ## Stack proposée
 
@@ -52,7 +52,7 @@ Le simulateur produit les entrées ; le backend calcule les anomalies. Les étiq
 | Analyse temporelle | Variables sur fenêtres et modèle statistique ou scikit-learn, évalué face à une référence simple |
 | Backend | FastAPI, validation et accès au stockage |
 | Stockage | SQLite pour un backend unique, fichier persistant interne |
-| Interface | HTML/CSS/JavaScript et Plotly ; React si l’équipe le maîtrise déjà |
+| Interface | HTML/CSS/JavaScript avec courbe Canvas, sans dépendance externe |
 | Déploiement | Docker Compose pour les services et volumes |
 
 La séparation API / IA / stockage reste logique dans le code. Si nécessaire, la vidéo sera traitée dans un processus distinct pour ne pas bloquer l’API, sans créer un nouveau dossier racine.
@@ -107,4 +107,12 @@ Préparer le dossier technique avec schémas et poster A3, le support de soutena
 
 ## Installation
 
-Aucune commande de lancement n’est encore disponible. Les prérequis et procédures seront ajoutés avec les composants exécutables.
+Docker Desktop démarré ou Docker Engine avec Compose v2 est nécessaire.
+
+```sh
+docker compose up --build -d
+```
+
+Ouvrir **http://localhost:8080**. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
+
+Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API intrusion, les identifiants, les contrôles de santé et les limites de cette configuration locale.

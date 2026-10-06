@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sentinel-X · The Thinker</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body><header><span class="tag">EPSI · MISSION SENTINEL-X</span><h1>The Thinker</h1><p>Supervision des capteurs et des événements d’intrusion</p></header>
+<main><p id="connection" role="status">Connexion au backend…</p><section id="health" class="grid"></section>
+<section><h2>Capteurs</h2><p>Une source est signalée périmée après 15 secondes sans mesure. Les valeurs conservées ne sont pas effacées.</p><div id="devices" class="grid"></div></section>
+<section><h2>Température · historique reçu</h2><label for="device">Source </label><select id="device"></select><canvas id="chart" width="1000" height="230" aria-label="Courbe de température" role="img"></canvas><p id="chart-caption"></p></section>
+<section><h2>Détection d’intrusion</h2><p id="vision">Aucun signal reçu. Le modèle de votre équipe doit être connecté.</p><div class="scroll"><table><thead><tr><th>Réception</th><th>Source</th><th>Zone</th><th>Événement</th><th>Confiance</th><th>Mode</th></tr></thead><tbody id="events"></tbody></table></div></section>
+<footer>Actualisation toutes les 2 secondes · Aucune détection IA n’est fabriquée par ce dashboard.</footer></main></body></html>
