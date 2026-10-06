@@ -2,7 +2,7 @@
 
 Projet du Workshop EPSI BAC+4 2026, Mission Sentinel-X : l’Avant-Poste Industriel du Futur.
 
-**The Thinker** rassemble les mesures de capteurs simulés, l’analyse vidéo, les alertes et la santé des services dans un dashboard unique.
+**The Watcher** rassemble les mesures de capteurs simulés, l’analyse vidéo, les alertes et la santé des services dans un dashboard unique.
 
 L’équipe ne disposant ni de matériel ni de boîtier, le prototype sera entièrement logiciel. Les sources physiques seront simulées ou rejouées ; les échanges réseau, le stockage, les traitements IA et les contrôles de sécurité devront fonctionner réellement.
 
