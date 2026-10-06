@@ -1,4 +1,4 @@
-# Sentinel-X
+# THEWATCHER
 
 Projet du Workshop EPSI BAC+4 2026 — **Mission Sentinel-X : l’Avant-Poste Industriel du Futur**.
 
