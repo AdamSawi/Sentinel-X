@@ -18,6 +18,11 @@ for account in backend sensors vision; do
     mosquitto_passwd -b /run/sentinel/passwords "$account" "$(cat "/run/sentinel/$account.password")"
   fi
 done
+for account in postgres app-db grafana-db grafana-admin; do
+  if [ ! -f "/run/sentinel/$account.password" ]; then
+    openssl rand -hex 24 > "/run/sentinel/$account.password"
+  fi
+done
 chown -R mosquitto:mosquitto /run/sentinel /mosquitto/data
 chmod 750 /run/sentinel
 chmod 640 /run/sentinel/*

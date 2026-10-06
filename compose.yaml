@@ -32,9 +32,13 @@ services:
     depends_on:
       mqtt:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:${API_PORT:-8080}:8000'
     volumes:
       - credentials:/run/sentinel:ro
-      - database:/data
+      - database:/legacy:ro
     healthcheck:
       test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/health", timeout=3)']
       interval: 10s
@@ -43,16 +47,67 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-  front:
+  postgres:
     <<: *runtime
-    build: ./front
+    image: postgres:17-alpine
+    user: postgres
+    group_add: ['1883']
+    environment:
+      POSTGRES_DB: sentinel
+      POSTGRES_PASSWORD_FILE: /run/sentinel/postgres.password
     depends_on:
-      backend:
+      mqtt:
         condition: service_healthy
-    ports:
-      - '127.0.0.1:${WEB_PORT:-8080}:8080'
+    volumes:
+      - credentials:/run/sentinel:ro
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     healthcheck:
-      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:8080/api/health']
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U postgres -d sentinel']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  prometheus:
+    <<: *runtime
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:9090/-/ready']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  grafana:
+    <<: *runtime
+    image: grafana/grafana:12.3.3
+    group_add: ['1883']
+    entrypoint: ['sh', '/etc/sentinel/start-grafana.sh']
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/sentinel/grafana-admin.password
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/sentinel.json
+    depends_on:
+      postgres:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+    volumes:
+      - credentials:/run/sentinel:ro
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/start.sh:/etc/sentinel/start-grafana.sh:ro
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - '127.0.0.1:${GRAFANA_PORT:-3000}:3000'
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/api/health']
       interval: 10s
       timeout: 5s
       retries: 3
@@ -60,3 +115,6 @@ volumes:
   credentials:
   database:
   mqtt-data:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

@@ -1,18 +1,14 @@
-# Backend
+# API et stockage
 
-Regroupe l’ingestion, l’API et le stockage. Les simulateurs et les modèles restent développés par les collègues ; ce service reçoit leurs mesures et résultats.
+FastAPI reçoit les mesures des capteurs et les résultats des composants des collègues par MQTT TLS ou HTTP. Aucun simulateur ni algorithme de détection n’est implémenté ici.
 
-Implémentation : Python, FastAPI, Paho MQTT et SQLite.
+- Validation et déduplication des observations.
+- Stockage dans PostgreSQL, avec heures d’observation et de réception.
+- Routes de lecture et endpoints d’ingestion authentifiés.
+- Exposition Prometheus sur `/metrics` : disponibilité MQTT/base, volumes acceptés, types d’événements, rejets et latence HTTP.
+- Historique des rejets API/ingestion dans `security_events`, sans secrets ni contenu brut des messages.
+- Migration idempotente de l’ancienne base SQLite si elle existe dans le volume conservé en lecture seule.
 
-- Valider les mesures MQTT et conserver les horodatages.
-- Recevoir les événements d’analyse sans exécuter de modèle.
-- Stocker mesures, événements, incidents et commandes.
-- Exposer les données au frontend ; les commandes restent à intégrer ultérieurement.
-- Fournir les heures de réception et les contrôles de santé ; compter les rejets depuis le démarrage.
-- Retourner les historiques récents en JSON. Acquittement et exports dédiés restent à développer.
+Les contrats existants restent compatibles. Le type d’événement `anomaly` est maintenant accepté en complément de `intrusion`, `presence` et `heartbeat` : le producteur calcule le résultat, l’API l’enregistre.
 
-Les modèles ne reçoivent pas les étiquettes de scénario. SQLite reste interne au backend et persiste via un volume ; documenter les migrations et les limites de concurrence si l’architecture évolue.
-
-L’API de réception est implémentée dans `app.py` : validation, persistance SQLite, abonnement MQTT TLS et routes de lecture pour le monitoring. Elle ne contient aucun modèle d’analyse ou de détection.
-
-Lancement et formats attendus : [guide Docker](../docs/docker.md). Vérification de l’intégration : `docker compose exec backend python smoke.py` (fixtures de test explicitement marquées simulées).
+Voir le [guide Docker](../docs/docker.md). Tests : `docker compose exec backend python smoke.py`, puis `docker compose exec backend python monitoring_check.py`.

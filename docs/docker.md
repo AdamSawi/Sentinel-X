@@ -1,36 +1,63 @@
-# Lancement et connexion des composants
+# Grafana, Prometheus et intégration
 
-## Démarrer
+## Lancer
 
-Installer Docker Engine avec Compose v2 ou Docker Desktop démarré. Depuis la racine :
+Docker Desktop démarré ou Docker Engine avec Compose v2 :
 
 ```sh
-docker compose up --build -d
+docker compose up --build -d --remove-orphans --wait
 docker compose ps
 ```
 
-Ouvrir **http://localhost:8080**. Le premier build télécharge les images et dépendances. Le broker génère automatiquement des mots de passe aléatoires et un certificat local ; les prochains démarrages les réutilisent.
+`--remove-orphans` retire l’ancien conteneur frontend s’il existe. Le code HTML/CSS/JavaScript maison est supprimé du dépôt ; son historique reste dans Git.
 
-Le dashboard démarre sans données. Les simulateurs et la détection sont développés par les collègues ; cette stack reçoit leurs résultats sans les remplacer. Aucun générateur ni modèle de détection n’est ajouté.
+- **Grafana : http://localhost:3000**
+- **API : http://localhost:8080**
+- MQTT TLS : localhost:8883
+- MQTT WebSocket TLS : wss://localhost:9001
 
-## Services
+Aucun simulateur ni modèle n’est lancé. Les collègues gardent leurs composants et envoient leurs résultats selon les contrats ci-dessous.
 
-| Service | Accès | Fonction |
+## Accès Grafana
+
+Utilisateur : **admin**. Le mot de passe est généré localement ; pour l’afficher dans votre terminal :
+
+```sh
+docker compose exec mqtt cat /run/sentinel/grafana-admin.password
+```
+
+Ne pas copier ce secret dans Git ou dans les logs du projet. Après connexion, ouvrir le dashboard **Sentinel-X · Analyse et sécurité** dans le dossier Sentinel-X. Les sources et le dashboard sont provisionnés automatiquement ; aucune configuration manuelle de source n’est nécessaire.
+
+La configuration du dashboard appartient à `infra/grafana/dashboards/sentinel.json`. Pour une modification durable, éditer ce fichier dans Git ; enregistrer depuis l’interface est désactivé pour ce dashboard provisionné.
+
+## Deux sources, deux usages
+
+| Source Grafana | Contenu | Chemin |
 | --- | --- | --- |
-| front | http://localhost:8080 | Interface et proxy de l’API |
-| backend | backend:8000, interne Docker | FastAPI, ingestion et SQLite |
-| mqtt | localhost:8883 | MQTT avec TLS, identifiants et ACL |
-| mqtt | wss://localhost:9001 | MQTT sur WebSocket TLS, pour une passerelle navigateur |
+| Prometheus | Disponibilité, débit d’ingestion, rejets, compteurs de détections et latence API | API /metrics → scrape toutes les 5 s → Prometheus → Grafana |
+| PostgreSQL | Courbes, dates, zones, descriptions, confiance et événements de sécurité | Producteur → ingestion API/MQTT → PostgreSQL → Grafana en lecture seule |
 
-SQLite, certificats, mots de passe et persistance MQTT utilisent des volumes Docker. `docker compose down` conserve ces volumes. **Ne pas ajouter `-v` pour un arrêt ordinaire : cela effacerait données et identifiants.**
+Le scraping ne récupère pas les incidents un par un. Ceux-ci sont enregistrés dès leur réception. Les compteurs Prometheus démarrent à zéro avec le processus ; les rapports SQL restent persistants. Les taux calculés par Prometheus nécessitent plusieurs scrapes et sont des estimations sur leur fenêtre.
 
-Les ports sont liés à 127.0.0.1 : cette base est destinée à une démonstration sur un PC. HTTP sert localement le dashboard et l’API. Avant un accès depuis un autre PC, prévoir HTTPS, authentification de lecture, règles réseau, certificat correspondant au nom du serveur et mise à jour des publications de ports. Ne pas simplement exposer les ports à tous les réseaux.
+Les rapports suivent la période choisie dans Grafana et affichent au plus les 500 dernières lignes. Pour un export CSV, utiliser l’inspection des données du panneau ; ce n’est pas un export complet au-delà de cette limite. Les courbes utilisent l’heure de réception serveur. L’heure d’observation du producteur est conservée séparément.
+
+Un heartbeat récent indique seulement que le composant publie encore, pas la qualité de son modèle. Sans heartbeat, on ne déduit pas son état de l’absence d’intrusions.
+
+## Stockage et migration
+
+PostgreSQL stocke `observations` et `security_events`. Le compte de l’API peut lire/insérer ; `grafana_reader` peut uniquement lire. PostgreSQL et Prometheus n’ont pas de port publié sur l’hôte.
+
+Si l’ancien volume SQLite contient des observations, elles sont importées au démarrage de l’API. La clé kind/device/message_id évite les doublons. Le volume SQLite reste monté en lecture seule, n’est pas supprimé et n’est plus la base active. Les identifiants numériques internes peuvent changer lors de la migration.
+
+Les volumes conservent PostgreSQL, Prometheus, Grafana, MQTT et les secrets. `docker compose down` les préserve. **Ne pas utiliser `down -v` pour un arrêt ordinaire.**
+
+Les scripts PostgreSQL d’initialisation ne s’exécutent que sur un volume neuf. Ne pas changer simplement les mots de passe dans credentials pour des services déjà initialisés : leur rotation exige également une mise à jour dans PostgreSQL/Grafana.
 
 ## Identifiants des producteurs
 
-Trois comptes MQTT sont créés : `sensors` publie les mesures ; `vision` publie les événements ; `backend` lit les deux flux. Les identifiants des producteurs servent également de jetons Bearer sur leur endpoint HTTP respectif.
+Comptes MQTT : `sensors` pour les mesures, `vision` pour les événements, `backend` pour la lecture. Les mots de passe sensors/vision servent aussi de jetons Bearer pour leurs endpoints HTTP.
 
-Créer localement un dossier `credentials` (ignoré par Git), puis exporter uniquement les fichiers nécessaires :
+Créer un dossier local credentials, ignoré par Git, puis exporter seulement ce dont chaque collègue a besoin :
 
 ```sh
 mkdir credentials
@@ -39,17 +66,12 @@ docker compose cp mqtt:/run/sentinel/sensors.password credentials/sensors.passwo
 docker compose cp mqtt:/run/sentinel/vision.password credentials/vision.password
 ```
 
-Le collègue capteurs utilise `sensors.password` ; le collègue intrusion utilise `vision.password`. Ne pas partager la clé privée serveur ni le compte backend. Ne pas copier les secrets dans le code ou Git.
+Ne pas partager les mots de passe PostgreSQL, Grafana, backend ou la clé privée MQTT. Le certificat autosigné est valable un an pour localhost, 127.0.0.1 et mqtt. Les clients doivent lui faire confiance explicitement ; ne pas désactiver TLS. Une extension Tinkercad peut utiliser WSS, mais son raccordement reste à tester par l’équipe.
 
-Le certificat autosigné, valide un an, contient localhost, 127.0.0.1 et mqtt. Les clients Python le chargent comme certificat de confiance. Les navigateurs nécessitent de lui faire confiance explicitement pour WSS ; la passerelle Tinkercad doit être testée dans le navigateur cible. Ne pas désactiver la vérification TLS. L’extension Tinkercad n’est ni installée ni intégrée par ce dépôt.
+## Mesures
 
-## Contrat capteurs
-
-Publier du JSON UTF-8, QoS 1, sans retain, sur :
-
-```text
-sentinel/sensors/<device_id>/telemetry
-```
+Topic MQTT : `sentinel/sensors/<device_id>/telemetry`, QoS 1, sans retain.
+Alternative : `POST http://localhost:8080/api/telemetry` avec `Authorization: Bearer <mot de passe sensors>`.
 
 ```json
 {
@@ -64,13 +86,12 @@ sentinel/sensors/<device_id>/telemetry
 }
 ```
 
-`temperature_c` est obligatoire ; humidité, indice gaz et présence sont facultatifs. L’indice gaz n’est pas une concentration calibrée. `device_id` doit correspondre au topic. Une nouvelle mesure reçoit un nouvel identifiant ; renvoyer le même identifiant est idempotent. Les producteurs doivent conserver des identifiants uniques après redémarrage (UUID conseillé).
+Température obligatoire ; humidité, indice gaz et présence facultatifs. Le gaz est un indice déclaré, pas une concentration calibrée. Le device doit correspondre au topic. Utiliser un nouvel identifiant par observation (UUID conseillé) ; un renvoi du même identifiant n’ajoute pas de doublon.
 
-Alternative HTTP : `POST http://localhost:8080/api/telemetry` avec `Authorization: Bearer <contenu sensors.password>` et `Content-Type: application/json`.
+## Intrusions et anomalies
 
-## Contrat intrusion
-
-Publier sur `sentinel/vision/<device_id>/events` avec le compte `vision`, ou envoyer ce même JSON par `POST /api/events` avec le jeton vision :
+Topic MQTT : `sentinel/vision/<device_id>/events`, compte vision.
+Alternative : `POST http://localhost:8080/api/events` avec `Authorization: Bearer <mot de passe vision>`.
 
 ```json
 {
@@ -85,30 +106,31 @@ Publier sur `sentinel/vision/<device_id>/events` avec le compte `vision`, ou env
 }
 ```
 
-`event_type` accepte `intrusion`, `presence` et `heartbeat`. Émettre un heartbeat toutes les 5 secondes pour indiquer que le composant tourne ; sans heartbeat, sa santé est inconnue. `confidence` est facultative et comprise entre 0 et 1. Les sources vidéo rejouées utilisent `simulated: true`.
+Types acceptés : `intrusion`, `anomaly`, `presence`, `heartbeat`. Même contrat pour une anomalie calculée par le collègue : changer event_type, source, zone et description. Le nom historique du compte/topic vision est conservé pour compatibilité.
 
-Le modèle reste dans le composant du collègue. Cette API reçoit ses résultats ; elle ne détecte aucune intrusion elle-même. Aucun flux vidéo n’est encore transporté. L’ingestion ajoute `received_at` (secondes Unix) et conserve `observed_at` avec fuseau horaire.
+Confiance facultative entre 0 et 1 ; ne pas y placer un score d’anomalie non normalisé. Envoyer un heartbeat toutes les 5 secondes pour la fraîcheur du composant. Les vidéos rejouées et capteurs simulés utilisent simulated=true. L’API ajoute received_at (secondes Unix) et conserve observed_at avec fuseau.
 
-## Surveillance et limites
+Les POST utilisent Content-Type: application/json. Aucun traitement vidéo ni algorithme d’analyse n’est fourni par cette stack.
 
-- Le dashboard interroge l’API toutes les 2 secondes ; il montre les 200 dernières mesures et les 100 derniers événements reçus.
-- Les sources sont marquées périmées après 15 secondes. Un historique conservé n’est pas un signe de connexion active.
-- Healthchecks Docker : MQTT authentifié, API et stockage accessibles, frontend relié au backend.
-- MQTT tente de se reconnecter automatiquement après interruption du broker.
-- Les messages sont limités à 16 Kio et validés. L’ingestion accepte au maximum 120 messages/minute par flux MQTT et 120 requêtes/minute par rôle HTTP authentifié. Réduire la cadence ou adapter explicitement ces limites si plusieurs devices sont ajoutés.
-- Le compteur de rejets API/ingestion est réinitialisé au redémarrage. Il n’inclut pas tous les refus du broker ; consulter ses logs pour les connexions MQTT refusées.
-- Les ACL séparent les rôles capteurs/vision, pas chaque device. La lecture du monitoring local n’est pas authentifiée. Cette base ne remplace pas le durcissement et le pentest du projet.
-- Pas encore de modèle IA embarqué, d’actionneurs, de rétention automatique des observations ou de supervision CPU/RAM. Le dashboard affiche les données reçues, sans score de risque inventé.
+## Sécurité et limites
 
-## Vérifier et dépanner
+- MQTT est chiffré et authentifié ; les ACL distinguent capteurs et événements, pas chaque device.
+- Rejets d’authentification HTTP, de validation et d’ingestion enregistrés sans message brut ni jeton. Les rejets propres au broker ne sont pas encore centralisés ; ils restent dans ses logs.
+- 16 Kio maximum par message ; 120 messages/minute par flux MQTT et 120 requêtes/minute par rôle HTTP authentifié.
+- Ports limités à 127.0.0.1. Grafana exige une connexion. L’API HTTP locale n’authentifie pas ses routes de lecture ; PostgreSQL/Prometheus communiquent en clair sur le réseau Docker interne.
+- Un accès depuis les PC des collègues demande une configuration réseau et HTTPS adaptée. Ne pas remplacer les adresses d’écoute à l’aveugle.
+- Pas de supervision CPU/RAM de l’hôte, d’IDS, de commandes d’actionneurs ou de règles d’alerte Grafana préconfigurées. Les tableaux présentent les résultats reçus.
+- Prometheus conserve 15 jours ; pas de purge automatique PostgreSQL à ce stade.
+
+## Vérifications
 
 ```sh
 docker compose exec backend python smoke.py
-docker compose logs --tail=50 mqtt backend front
-docker compose restart backend
+docker compose exec backend python monitoring_check.py
+docker compose logs --tail=50 backend mqtt postgres prometheus grafana
 docker compose down
 ```
 
-Le smoke test passe par le proxy du frontend, publie une mesure en MQTT TLS, crée un événement via l’API, vérifie les refus de rôle/format et l’idempotence. Ses observations `smoke-*` restent dans l’historique avec le marqueur simulé.
+Le smoke test envoie des fixtures explicitement simulées et vérifie les permissions, rejets, doublons et métriques. Il ne teste aucun modèle. Le second contrôle vérifie le scrape, les sources Grafana, les requêtes des panneaux et les droits SQL en lecture seule.
 
-Les ports peuvent être changés via `WEB_PORT`, `MQTT_PORT`, `MQTT_WS_PORT` dans un `.env` local. Les modèles des collègues pourront ensuite être ajoutés comme services Compose, en utilisant `mqtt:8883` ou `backend:8000` sur le réseau Docker.
+Ports configurables dans un .env local : API_PORT (8080), GRAFANA_PORT (3000), MQTT_PORT (8883), MQTT_WS_PORT (9001).

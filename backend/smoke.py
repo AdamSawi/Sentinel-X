@@ -1,4 +1,4 @@
-"""Run inside backend: validates the live stack through the frontend proxy."""
+"""Run inside backend: validates live ingestion and storage, not AI models."""
 import json
 import time
 import uuid
@@ -8,7 +8,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import paho.mqtt.client as mqtt
 
-BASE = 'http://front:8080'
+BASE = 'http://backend:8000'
 CREDS = Path('/run/sentinel')
 
 
@@ -52,6 +52,8 @@ expect_status(422, '/api/events', {**event, 'confidence': 2}, role='vision')
 assert request('/api/events', event, role='vision')['inserted'] is True
 assert request('/api/events', event, role='vision')['inserted'] is False
 assert any(x['message_id'] == event['message_id'] for x in request('/api/events'))
+anomaly = {**event, 'message_id': str(uuid.uuid4()), 'event_type': 'anomaly', 'description': 'Integration test only'}
+assert request('/api/events', anomaly, role='vision')['inserted'] is True
 
 client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id='sentinel-smoke-' + uuid.uuid4().hex[:8])
 client.username_pw_set('sensors', (CREDS / 'sensors.password').read_text().strip())
@@ -72,7 +74,7 @@ time.sleep(1)
 assert not any(x['message_id'] == forbidden['message_id'] for x in request('/api/events'))
 client.disconnect()
 client.loop_stop()
-with urlopen(BASE, timeout=5) as response:
-    assert b'The Thinker' in response.read()
-print('PASS: frontend, API, SQLite, MQTT TLS, producer permissions, validation and duplicate handling.')
+with urlopen(BASE + '/metrics', timeout=5) as response:
+    assert b'sentinel_observations_total' in response.read()
+print('PASS: API, PostgreSQL, MQTT TLS, producer permissions, validation, metrics and duplicate handling.')
 print('Test observations are marked simulated (smoke-sensor / smoke-vision).')

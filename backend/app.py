@@ -2,7 +2,9 @@
 import json
 import logging
 import secrets
+import shutil
 import sqlite3
+import tempfile
 import threading
 import time
 from collections import defaultdict, deque
@@ -12,16 +14,32 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import paho.mqtt.client as mqtt
+import psycopg
+from psycopg.rows import dict_row
+from psycopg.types.json import Jsonb
+from prometheus_client import Counter, Gauge, Histogram, generate_latest, CONTENT_TYPE_LATEST
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 log = logging.getLogger('sentinel')
 CREDS = Path('/run/sentinel')
-DB = '/data/sentinel.sqlite3'
+LEGACY_DB = Path('/legacy/sentinel.sqlite3')
 lock = threading.Lock()
 connected = threading.Event()
 rejections = 0
 rates = defaultdict(deque)
+accepted_metric = Counter('sentinel_observations', 'New observations accepted since process start', ['kind'])
+event_metric = Counter('sentinel_events', 'New events accepted since process start', ['event_type'])
+reject_metric = Counter('sentinel_rejections', 'Rejected inputs since process start', ['reason', 'transport'])
+http_metric = Counter('sentinel_http_requests', 'API requests since process start', ['route', 'status'])
+duration_metric = Histogram('sentinel_http_duration_seconds', 'API request duration', ['route'])
+mqtt_metric = Gauge('sentinel_mqtt_connected', 'Backend subscribed to MQTT')
+db_metric = Gauge('sentinel_database_up', 'PostgreSQL connectivity checked during scrape')
+for kind in ('event', 'telemetry'):
+    accepted_metric.labels(kind)
+for kind in ('intrusion', 'presence', 'heartbeat', 'anomaly'):
+    event_metric.labels(kind)
 
 
 class Observation(BaseModel):
@@ -47,22 +65,29 @@ class Telemetry(Observation):
 
 
 class Intrusion(Observation):
-    event_type: Literal['intrusion', 'presence', 'heartbeat']
+    event_type: Literal['intrusion', 'presence', 'heartbeat', 'anomaly']
     zone: str = Field(min_length=1, max_length=64)
     confidence: float | None = Field(default=None, ge=0, le=1)
     description: str = Field(default='', max_length=256)
 
 
 def connect_db():
-    db = sqlite3.connect(DB, timeout=10)
-    db.row_factory = sqlite3.Row
-    return db
+    return psycopg.connect(host='postgres', dbname='sentinel', user='sentinel_app',
+                           password=(CREDS / 'app-db.password').read_text().strip(),
+                           connect_timeout=2, row_factory=dict_row)
 
 
-def reject():
+def reject(reason='invalid_message', transport='mqtt'):
     global rejections
     with lock:
         rejections += 1
+    reject_metric.labels(reason, transport).inc()
+    try:
+        with connect_db() as db:
+            db.execute('INSERT INTO security_events(received_at,reason,transport) VALUES(%s,%s,%s)',
+                       (time.time(), reason, transport))
+    except psycopg.Error:
+        log.warning('Could not persist security event')
 
 
 def save(kind, observation):
@@ -70,10 +95,15 @@ def save(kind, observation):
     payload = observation.model_dump(mode='json')
     with connect_db() as db:
         cursor = db.execute(
-            'INSERT OR IGNORE INTO observations(kind, device, message_id, received_at, payload) VALUES(?,?,?,?,?)',
-            (kind, observation.device_id, observation.message_id, now, json.dumps(payload)),
+            'INSERT INTO observations(kind, device, message_id, received_at, payload) VALUES(%s,%s,%s,%s,%s) ON CONFLICT(kind,device,message_id) DO NOTHING',
+            (kind, observation.device_id, observation.message_id, now, Jsonb(payload)),
         )
-        return cursor.rowcount == 1
+        inserted = cursor.rowcount == 1
+    if inserted:
+        accepted_metric.labels(kind).inc()
+        if kind == 'event':
+            event_metric.labels(observation.event_type).inc()
+    return inserted
 
 
 def on_connect(client, userdata, flags, reason_code, properties):
@@ -108,8 +138,8 @@ def on_message(client, userdata, message):
     except (ValueError, ValidationError, HTTPException):
         reject()
         log.warning('MQTT observation rejected')
-    except sqlite3.Error:
-        reject()
+    except psycopg.Error:
+        reject('storage_error', 'mqtt')
         log.exception('MQTT storage failed')
 
 
@@ -123,12 +153,25 @@ client.on_message = on_message
 @asynccontextmanager
 async def lifespan(app):
     with connect_db() as db:
-        db.execute('PRAGMA journal_mode=WAL')
-        db.execute('''CREATE TABLE IF NOT EXISTS observations (
-            id INTEGER PRIMARY KEY, kind TEXT NOT NULL, device TEXT NOT NULL,
-            message_id TEXT NOT NULL, received_at REAL NOT NULL, payload TEXT NOT NULL,
-            UNIQUE(kind, device, message_id))''')
-        db.execute('CREATE INDEX IF NOT EXISTS observations_kind_id ON observations(kind,id)')
+        db.execute('SELECT 1 FROM observations LIMIT 1')
+        # Preserve legacy observations; duplicates are ignored on later starts.
+        if LEGACY_DB.exists():
+            # SQLite may need writable shared-memory files to read a WAL database.
+            # Read a private copy, including its WAL, without altering the archive.
+            with tempfile.TemporaryDirectory() as directory:
+                copy = Path(directory) / LEGACY_DB.name
+                shutil.copyfile(LEGACY_DB, copy)
+                wal = Path(str(LEGACY_DB) + '-wal')
+                if wal.exists():
+                    shutil.copyfile(wal, str(copy) + '-wal')
+                legacy = sqlite3.connect(copy)
+                try:
+                    for kind, device, mid, received, payload in legacy.execute(
+                        'SELECT kind,device,message_id,received_at,payload FROM observations'):
+                        db.execute('INSERT INTO observations(kind,device,message_id,received_at,payload) VALUES(%s,%s,%s,%s,%s) ON CONFLICT(kind,device,message_id) DO NOTHING',
+                                   (kind, device, mid, received, Jsonb(json.loads(payload))))
+                finally:
+                    legacy.close()
     client.username_pw_set('backend', (CREDS / 'backend.password').read_text().strip())
     client.tls_set(ca_certs=str(CREDS / 'server.crt'))
     client.reconnect_delay_set(1, 10)
@@ -157,14 +200,19 @@ def authorized(role):
     def check(authorization: Annotated[str | None, Header()] = None):
         expected = 'Bearer ' + (CREDS / f'{role}.password').read_text().strip()
         if not authorization or not secrets.compare_digest(authorization, expected):
-            reject()
+            reject('authentication', 'http')
             raise HTTPException(401, 'Invalid producer token')
-        rate_limit('http:' + role)
+        try:
+            rate_limit('http:' + role)
+        except HTTPException:
+            reject('rate_limit', 'http')
+            raise
     return check
 
 
 @app.middleware('http')
 async def limit_body(request: Request, call_next):
+    started = time.perf_counter()
     if request.method == 'POST':
         size = 0
         chunks = []
@@ -172,14 +220,30 @@ async def limit_body(request: Request, call_next):
             size += len(chunk)
             if size > 16384:
                 from fastapi.responses import JSONResponse
-                reject()
+                reject('payload_size', 'http')
                 return JSONResponse({'detail': 'Payload too large'}, status_code=413)
             chunks.append(chunk)
         request._body = b''.join(chunks)
     response = await call_next(request)
     if response.status_code == 422:
-        reject()
+        reject('validation', 'http')
+    if request.url.path != '/metrics':
+        route = request.url.path if request.url.path in ('/api/health', '/api/events', '/api/telemetry') else 'other'
+        http_metric.labels(route, str(response.status_code)).inc()
+        duration_metric.labels(route).observe(time.perf_counter() - started)
     return response
+
+
+@app.get('/metrics', include_in_schema=False)
+def metrics():
+    mqtt_metric.set(1 if connected.is_set() else 0)
+    try:
+        with connect_db() as db:
+            db.execute('SELECT 1')
+        db_metric.set(1)
+    except psycopg.Error:
+        db_metric.set(0)
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get('/api/health')
@@ -192,8 +256,8 @@ def health():
 
 def rows(kind, limit):
     with connect_db() as db:
-        data = db.execute('SELECT * FROM observations WHERE kind=? ORDER BY id DESC LIMIT ?', (kind, limit)).fetchall()
-    return [{**json.loads(row['payload']), 'received_at': row['received_at'], 'id': row['id']} for row in data]
+        data = db.execute('SELECT * FROM observations WHERE kind=%s ORDER BY id DESC LIMIT %s', (kind, limit)).fetchall()
+    return [{**row['payload'], 'received_at': row['received_at'], 'id': row['id']} for row in data]
 
 
 @app.get('/api/telemetry')

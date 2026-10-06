@@ -6,18 +6,17 @@ Projet du Workshop EPSI BAC+4 2026, Mission Sentinel-X : l’Avant-Poste Industr
 
 L’équipe ne disposant ni de matériel ni de boîtier, le prototype sera entièrement logiciel. Les sources physiques seront simulées ou rejouées ; les échanges réseau, le stockage, les traitements IA et les contrôles de sécurité devront fonctionner réellement.
 
-> État actuel : environnement Docker Compose, broker MQTT sécurisé, API de réception, stockage SQLite et monitoring disponibles. Les simulateurs et les modèles de détection restent à développer et connecter par les collègues. Aucun résultat IA n’est généré par cette infrastructure.
+> État actuel : environnement Docker Compose, broker MQTT sécurisé, API de réception, stockage PostgreSQL, Prometheus et Grafana disponibles. Les simulateurs et les modèles de détection restent à développer et connecter par les collègues. Aucun résultat IA n’est généré par cette infrastructure.
 
 ## Organisation
 
-Cinq dossiers, sans service supplémentaire de type « Engine ».
+Quatre dossiers, sans frontend maison ni service supplémentaire de type « Engine ».
 
 | Dossier | Contenu |
 | --- | --- |
 | [simulation/](simulation/) | Capteurs virtuels, scénarios reproductibles, sources vidéo et actionneurs simulés |
 | [backend/](backend/) | Ingestion, API et stockage ; réception des résultats IA des collègues |
-| [front/](front/) | Dashboard, graphiques, commandes et visualisation du dispositif virtuel |
-| [infra/](infra/) | Docker Compose, Mosquitto, TLS, réseau, sécurité et supervision |
+| [infra/](infra/) | Docker Compose, Mosquitto, PostgreSQL, Prometheus et Grafana provisionné |
 | [docs/](docs/) | Architecture, interfaces, protocole de démonstration et résultats |
 
 Les responsabilités de `api`, `database` et `modeles-ia` sont regroupées dans `backend`. `iot` est remplacé par `simulation`. Le travail de `cyber` rejoint `infra` et les contrôles applicatifs du backend ; la sécurité reste transverse.
@@ -27,15 +26,13 @@ Les responsabilités de `api`, `database` et `modeles-ia` sont regroupées dans 
 ```mermaid
 flowchart LR
     Sim[Capteurs virtuels] -->|MQTTS| MQTT[Mosquitto]
-    MQTT --> Backend[Backend : ingestion, API, IA, alertes]
-    Video[Vidéo locale rejouée] -->|Images analysées| Backend
-    Backend --> DB[(Stockage interne)]
+    MQTT --> Backend[API : ingestion et stockage]
+    Video[Composant IA du collègue] -->|Événements analysés| Backend
+    Backend --> DB[(PostgreSQL)]
     Infra[Logs et santé des services] --> Backend
-    Backend -->|Mesures et événements| Front[Dashboard]
-    Front -->|Commandes authentifiées| Backend
-    Backend -->|Commandes autorisées| MQTT
-    MQTT --> Sim
-    Sim -->|Retour d’état| MQTT
+    Backend -->|Scrape /metrics| Prom[Prometheus]
+    Prom --> Grafana[Grafana]
+    DB -->|Lecture seule| Grafana
 ```
 
 Les données passent par l’ingestion avant stockage. Elle valide les messages, conserve le temps de mesure simulé et ajoute l’heure réelle de réception. Le simulateur et le navigateur n’accèdent jamais directement à la base.
@@ -51,8 +48,8 @@ Les composants des collègues produisent les mesures et les résultats d’analy
 | Vidéo | Fichier local lu avec OpenCV, puis modèle de détection de personnes à choisir |
 | Analyse temporelle | Variables sur fenêtres et modèle statistique ou scikit-learn, évalué face à une référence simple |
 | Backend | FastAPI, validation et accès au stockage |
-| Stockage | SQLite pour un backend unique, fichier persistant interne |
-| Interface | HTML/CSS/JavaScript avec courbe Canvas, sans dépendance externe |
+| Stockage | PostgreSQL : mesures, événements et rejets persistants |
+| Monitoring | Grafana : source PostgreSQL + source Prometheus |
 | Déploiement | Docker Compose pour les services et volumes |
 
 La séparation API / IA / stockage reste logique dans le code. Si nécessaire, la vidéo sera traitée dans un processus distinct pour ne pas bloquer l’API, sans créer un nouveau dossier racine.
@@ -75,7 +72,7 @@ Afficher explicitement le mode simulation/rejeu. Un événement IA prédéfini p
 - Chiffrer les flux, vérifier les certificats et authentifier les clients.
 - Valider formats, tailles et valeurs ; limiter les débits et les droits MQTT.
 - Faire passer les commandes par l’API avec autorisation et journalisation.
-- Garder SQLite interne au backend, les secrets hors du dépôt et les privilèges limités.
+- Garder PostgreSQL sur le réseau Docker interne, les secrets hors du dépôt et les privilèges limités.
 - Exposer seulement les ports nécessaires ; documenter firewall et SSH par clé lorsque utilisés.
 - Afficher des états de sécurité réellement vérifiés et datés.
 - Réserver les essais cyber au système local autorisé.
@@ -113,6 +110,6 @@ Docker Desktop démarré ou Docker Engine avec Compose v2 est nécessaire.
 docker compose up --build -d
 ```
 
-Ouvrir **http://localhost:8080**. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
+Ouvrir **http://localhost:3000** (Grafana). L’API reste sur **http://localhost:8080**. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
 
-Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API intrusion, les identifiants, les contrôles de santé et les limites de cette configuration locale.
+Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API événements, l’accès Grafana, les contrôles de santé et les limites de cette configuration locale.

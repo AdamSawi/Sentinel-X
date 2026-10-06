@@ -1,15 +1,15 @@
-# Infrastructure et cybersécurité
+# Infrastructure et monitoring
 
-Regroupe déploiement et responsabilités de l’ancien dossier `cyber`.
+Cinq services dans `compose.yaml` :
 
-Préparer Docker Compose, Mosquitto avec TLS et authentification, volumes persistants, contrôles de santé et gestion des logs. Exposer seulement les ports nécessaires ; SQLite reste interne au backend.
+- Mosquitto : MQTT TLS, WebSocket TLS, authentification et ACL.
+- PostgreSQL : observations et historique des rejets ; aucun port publié sur l’hôte.
+- Backend : ingestion et exposition de métriques, sans modèle ni simulateur.
+- Prometheus : scrape de `backend:8000/metrics` toutes les 5 secondes, rétention 15 jours.
+- Grafana : interface unique, sources et dashboard provisionnés depuis `infra/grafana/`.
 
-Documenter certificats, droits MQTT, secrets fournis à l’exécution, isolation, firewall et SSH si utilisés. Les contrôles applicatifs de validation et d’autorisation sont dans le backend.
+Les mots de passe et le certificat local sont générés au premier démarrage et conservés dans le volume credentials. Le compte PostgreSQL de Grafana possède seulement SELECT. L’application utilise un compte distinct sans droit de modifier le schéma. Les ports publiés sont limités à localhost.
 
-Démontrer de vrais refus de connexion, rejets de messages et pertes/reprises de services locaux. Collecter les événements constatés plutôt que des logs prédéfinis présentés comme des preuves.
+Grafana : http://localhost:3000. API : http://localhost:8080. Pour les identifiants et les contrats : [guide Docker](../docs/docker.md).
 
-Conserver le périmètre autorisé du pentest, les observations, corrections et vérifications sans secrets.
-
-Le déploiement est disponible via `compose.yaml` à la racine. Le broker utilise TLS, trois comptes à droits distincts et des secrets générés au premier lancement. Les ports sont limités à localhost. Le backend et le frontend ont des healthchecks ; données et identifiants persistent dans des volumes.
-
-Le [guide Docker](../docs/docker.md) décrit le lancement, les contrats et les limites de sécurité restant à traiter.
+Le réseau Docker interne PostgreSQL/Prometheus utilise des communications non chiffrées. MQTT est chiffré. L’API HTTP reste locale ; ne pas présenter cette base comme un déploiement entièrement durci ou exposable à Internet.
