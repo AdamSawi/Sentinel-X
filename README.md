@@ -2,7 +2,7 @@
 
 Projet du Workshop EPSI BAC+4 2026 — **Mission Sentinel-X : l’Avant-Poste Industriel du Futur**.
 
-Sentinel-X est un prototype de supervision cyber-physique développé pendant un sprint de quatre jours. Il rassemble les mesures de capteurs, l’analyse vidéo locale, les résultats des modèles IA et les informations de sécurité dans une application de monitoring unique.
+The Thinker est un prototype de supervision cyber-physique développé pendant un sprint de quatre jours. Il rassemble les mesures de capteurs, l’analyse vidéo locale, les résultats des modèles IA et les informations de sécurité dans une application de monitoring unique.
 
 L’objectif est de livrer une démonstration intégrée et stable, avec des choix techniques simples, utiles et défendables devant un jury.
 
