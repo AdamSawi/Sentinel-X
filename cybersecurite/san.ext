@@ -1,0 +1,4 @@
+subjectAltName = DNS:sentinel-x.lan, IP:192.168.10.1
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
