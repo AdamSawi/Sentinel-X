@@ -81,16 +81,6 @@ Afficher explicitement le mode simulation/rejeu. Un événement IA prédéfini p
 - Réserver les essais cyber au système local autorisé.
 - Distinguer risque, fraîcheur des données, acquittement et résolution.
 
-## Résultats et démonstration
-
-Conserver un identifiant d’exécution, le scénario, sa graine, ses paramètres et les versions utilisées. Exporter mesures et détections en CSV/JSON, puis les graphiques pour le dossier.
-
-Évaluer les faux positifs, incidents manqués, délais de détection, latences de bout en bout et temps de traitement vidéo. Séparer les scénarios de réglage de ceux d’évaluation, avec d’autres graines et amplitudes.
-
-Les résultats synthétiques valident le fonctionnement dans les scénarios testés, pas la fiabilité industrielle ou la calibration de capteurs physiques.
-
-Voir le [guide de simulation](docs/simulation.md) pour les technologies, figures et déroulé de démo.
-
 ## Adaptation du sujet
 
 Le sujet original demande notamment ESP8266 avec firmware C++, webcam USB, OLED, actionneurs et boîtier fabriqué. Ces éléments ne seront pas réalisés matériellement. Faire confirmer par les coachs les modalités d’évaluation adaptées ; aucune dérogation déjà accordée n’est présumée ici.
@@ -100,10 +90,6 @@ La vision Python, l’analyse temporelle dépassant les simples seuils statiques
 ## Équipe et livrables
 
 Les contributions directes sur `main` sont autorisées selon le choix de l’équipe ; branches et pull requests sont facultatives. Synchroniser le dépôt avant de travailler et faire des commits ciblés.
-
-Priorité : simulateur → MQTT → backend → dashboard, puis IA, commandes et sécurité. Réserver du temps pour rejouer les scénarios, exporter les résultats et préparer la présentation.
-
-Préparer le dossier technique avec schémas et poster A3, le support de soutenance, le teaser vertical et l’archive du code. Signaler aux coachs les éléments matériels absents et les adaptations des livrables.
 
 ## Installation
 
