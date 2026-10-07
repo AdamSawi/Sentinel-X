@@ -1,12 +1,12 @@
-# 🔐 Sentinel-X — Mise en place de la PKI
+# Sentinel-X — Mise en place de la PKI
 
 > **Partie Cybersécurité** · Workshop national EPSI — Octobre 2026
 
-## 🎯 Objectif
+## Objectif
 
 Mise en place d'une **autorité de certification (CA) interne**, utilisée pour signer un certificat serveur destiné au **chiffrement TLS** des échanges du projet (ESP8266 ↔ serveur, et/ou API).
 
-## ✅ Résultat
+## Résultat
 
 La CA et le certificat serveur ont été générés et vérifiés avec succès :
 
@@ -17,7 +17,7 @@ server.crt: OK
 
 La chaîne de confiance est opérationnelle.
 
-## 📁 Fichiers produits
+## Fichiers produits
 
 | Fichier      | Rôle                             | Statut                                                 |
 |--------------|----------------------------------|--------------------------------------------------------|
@@ -41,7 +41,7 @@ La chaîne de confiance est opérationnelle.
 | Algorithme de signature   | SHA-256                                      |
 | Durée de validité         | 365 jours                                    |
 
-## ⚠️ Points de vigilance
+## Points de vigilance
 
 - **`ca.key` ne doit jamais se trouver dans un dépôt Git**, ni être transmis par un canal non chiffré.
 - Le **nom et l'IP** du certificat sont à valider avec l'INFRA avant la configuration finale du service.
@@ -53,6 +53,4 @@ La chaîne de confiance est opérationnelle.
 > *.key
 > ```
 
-## ➡️ Prochaine étape
 
-Utiliser `ca.crt`, `server.crt` et `server.key` pour configurer le chiffrement TLS du service retenu par l'équipe.
