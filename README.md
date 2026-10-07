@@ -104,9 +104,14 @@ Pour le mdp Grafana : docker compose exec mqtt cat /run/sentinel/grafana-admin.p
 user : admin
 
 ## Lancement après installation 
-docker compose up -d --wait
 
-Avec une carte graphique NVIDIA compatible Docker Desktop/WSL2 :
+### Lancement sur CPU/GPU :
+
+```sh
+docker compose up -d --wait
+```
+
+## Avec une carte graphique NVIDIA compatible Docker Desktop/WSL2 :
 
 ```sh
 docker compose -f compose.yaml -f compose.gpu.yaml up --build -d --remove-orphans --wait
