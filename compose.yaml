@@ -16,7 +16,6 @@ services:
     build: ./infra
     ports:
       - '127.0.0.1:${MQTT_PORT:-8883}:8883'
-      - '127.0.0.1:${MQTT_WS_PORT:-9001}:9001'
     volumes:
       - credentials:/run/sentinel
       - mqtt-data:/mosquitto/data
@@ -82,6 +81,28 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+  vision:
+    <<: *runtime
+    build: ./modeles-ia
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      OMP_NUM_THREADS: '2'
+      MKL_NUM_THREADS: '2'
+    volumes:
+      - credentials:/run/sentinel:ro
+    ports:
+      - '127.0.0.1:${VISION_PORT:-8090}:8090'
+    healthcheck:
+      test: ['CMD', 'python', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:8090/health", timeout=3)']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
   grafana:
     <<: *runtime
     image: grafana/grafana:12.3.3
@@ -92,11 +113,14 @@ services:
       GF_SECURITY_ADMIN_PASSWORD__FILE: /run/sentinel/grafana-admin.password
       GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
+      GF_PANELS_DISABLE_SANITIZE_HTML: 'true'
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /etc/grafana/dashboards/sentinel.json
     depends_on:
       postgres:
         condition: service_healthy
       prometheus:
+        condition: service_healthy
+      vision:
         condition: service_healthy
     volumes:
       - credentials:/run/sentinel:ro

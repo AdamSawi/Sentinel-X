@@ -1,0 +1,3 @@
+*.ipynb
+README.md
+__pycache__/

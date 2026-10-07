@@ -31,6 +31,12 @@ rejections = 0
 rates = defaultdict(deque)
 accepted_metric = Counter('sentinel_observations', 'New observations accepted since process start', ['kind'])
 event_metric = Counter('sentinel_events', 'New events accepted since process start', ['event_type'])
+vision_detection_metric = Counter(
+    'sentinel_vision_detections', 'Objects detected by vision producers', ['model', 'event_type'])
+vision_confidence_metric = Gauge(
+    'sentinel_vision_confidence', 'Confidence of the latest vision event', ['model', 'device'])
+vision_inference_metric = Histogram(
+    'sentinel_vision_inference_seconds', 'Vision inference duration reported by producers', ['model'])
 reject_metric = Counter('sentinel_rejections', 'Rejected inputs since process start', ['reason', 'transport'])
 http_metric = Counter('sentinel_http_requests', 'API requests since process start', ['route', 'status'])
 duration_metric = Histogram('sentinel_http_duration_seconds', 'API request duration', ['route'])
@@ -69,6 +75,9 @@ class Intrusion(Observation):
     zone: str = Field(min_length=1, max_length=64)
     confidence: float | None = Field(default=None, ge=0, le=1)
     description: str = Field(default='', max_length=256)
+    model: Literal['yolo', 'face', 'combined'] | None = None
+    detections: int | None = Field(default=None, ge=0, le=1000)
+    processing_ms: float | None = Field(default=None, ge=0, le=60000)
 
 
 def connect_db():
@@ -103,6 +112,13 @@ def save(kind, observation):
         accepted_metric.labels(kind).inc()
         if kind == 'event':
             event_metric.labels(observation.event_type).inc()
+            if observation.model:
+                count = observation.detections if observation.detections is not None else 1
+                vision_detection_metric.labels(observation.model, observation.event_type).inc(count)
+                if observation.confidence is not None:
+                    vision_confidence_metric.labels(observation.model, observation.device_id).set(observation.confidence)
+                if observation.processing_ms is not None:
+                    vision_inference_metric.labels(observation.model).observe(observation.processing_ms / 1000)
     return inserted
 
 

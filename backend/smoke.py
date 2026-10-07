@@ -45,7 +45,8 @@ assert health['database'] == 'ok'
 wait_for(lambda: request('/api/health')['mqtt'] == 'connected')
 stamp = datetime.now(timezone.utc).isoformat()
 event = dict(device_id='smoke-vision', message_id=str(uuid.uuid4()), observed_at=stamp,
-             simulated=True, event_type='intrusion', zone='test', confidence=.92)
+             simulated=True, event_type='intrusion', zone='test', confidence=.92,
+             model='combined', detections=2, processing_ms=42.5)
 expect_status(401, '/api/events', event, token='Bearer invalid')
 expect_status(401, '/api/events', event, role='sensors')
 expect_status(422, '/api/events', {**event, 'confidence': 2}, role='vision')

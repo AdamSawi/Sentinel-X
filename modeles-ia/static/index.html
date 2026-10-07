@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Caméra Sentinel-X</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#05070b;color:#d8e2f0;font:14px system-ui}
+    main{position:relative;width:100%;height:100%;display:grid;place-items:center}
+    video,canvas{display:none} img{width:100%;height:100%;object-fit:contain}
+    #start{position:absolute;z-index:2;padding:14px 22px;border:1px solid #35d07f;border-radius:6px;background:#10251a;color:#dfffea;font-weight:700;cursor:pointer}
+    #status{position:absolute;left:10px;bottom:8px;padding:5px 8px;background:#000a;border-radius:4px}
+  </style>
+</head>
+<body>
+<main>
+  <button id="start">ACTIVER LA CAMÉRA</button>
+  <video id="source" autoplay playsinline muted></video>
+  <canvas id="buffer" width="640" height="360"></canvas>
+  <img id="result" alt="Flux analysé Sentinel-X">
+  <div id="status">En attente de permission caméra</div>
+</main>
+<script>
+const start=document.querySelector('#start'),video=document.querySelector('#source'),canvas=document.querySelector('#buffer');
+const result=document.querySelector('#result'),status=document.querySelector('#status'),ctx=canvas.getContext('2d');
+let running=false,lastUrl;
+async function loop(){
+  if(!running)return;
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.72));
+  try{
+    const response=await fetch('/analyze',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob});
+    if(!response.ok)throw new Error('HTTP '+response.status);
+    const url=URL.createObjectURL(await response.blob()); result.src=url;
+    if(lastUrl)URL.revokeObjectURL(lastUrl); lastUrl=url; status.textContent='Analyse active · YOLO + visage';
+  }catch(error){status.textContent='Analyse indisponible · '+error.message;}
+  setTimeout(loop,100);
+}
+start.onclick=async()=>{
+  try{
+    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1280},height:{ideal:720}},audio:false});
+    await video.play(); start.hidden=true; running=true; status.textContent='Initialisation du modèle…'; loop();
+  }catch(error){status.textContent='Caméra refusée ou indisponible · '+error.message;}
+};
+</script>
+</body>
+</html>

@@ -12,11 +12,12 @@ docker compose ps
 `--remove-orphans` retire l’ancien conteneur frontend s’il existe. Le code HTML/CSS/JavaScript maison est supprimé du dépôt ; son historique reste dans Git.
 
 - **Grafana : http://localhost:3000**
+- **Vision IA / caméra : http://localhost:8090**
 - **API : http://localhost:8080**
 - MQTT TLS : localhost:8883
-- MQTT WebSocket TLS : wss://localhost:9001
+- MQTT WebSocket TLS : port 9001 interne au réseau Docker
 
-Aucun simulateur ni modèle n’est lancé. Les collègues gardent leurs composants et envoient leurs résultats selon les contrats ci-dessous.
+Le service vision YOLO/MediaPipe est lancé automatiquement. Dans Grafana, cliquer sur **ACTIVER LA CAMÉRA** puis autoriser la webcam. Le navigateur transmet les images au conteneur ; aucun notebook Jupyter n’est requis. Les simulateurs de capteurs restent des producteurs séparés.
 
 ## Accès Grafana
 
@@ -26,7 +27,7 @@ Utilisateur : **admin**. Le mot de passe est généré localement ; pour l’aff
 docker compose exec mqtt cat /run/sentinel/grafana-admin.password
 ```
 
-Ne pas copier ce secret dans Git ou dans les logs du projet. Après connexion, ouvrir le dashboard **Sentinel-X · Analyse et sécurité** dans le dossier Sentinel-X. Les sources et le dashboard sont provisionnés automatiquement ; aucune configuration manuelle de source n’est nécessaire.
+Ne pas copier ce secret dans Git ou dans les logs du projet. Après connexion, ouvrir le dashboard **Sentinel-X · Centre de contrôle** dans le dossier Sentinel-X. Les sources et le dashboard sont provisionnés automatiquement ; aucune configuration manuelle de source n’est nécessaire.
 
 La configuration du dashboard appartient à `infra/grafana/dashboards/sentinel.json`. Pour une modification durable, éditer ce fichier dans Git ; enregistrer depuis l’interface est désactivé pour ce dashboard provisionné.
 
@@ -110,7 +111,7 @@ Types acceptés : `intrusion`, `anomaly`, `presence`, `heartbeat`. Même contrat
 
 Confiance facultative entre 0 et 1 ; ne pas y placer un score d’anomalie non normalisé. Envoyer un heartbeat toutes les 5 secondes pour la fraîcheur du composant. Les vidéos rejouées et capteurs simulés utilisent simulated=true. L’API ajoute received_at (secondes Unix) et conserve observed_at avec fuseau.
 
-Les POST utilisent Content-Type: application/json. Aucun traitement vidéo ni algorithme d’analyse n’est fourni par cette stack.
+Les POST utilisent Content-Type: application/json. Le service vision intégré produit automatiquement ce format ; le contrat reste disponible pour les autres modèles de l’équipe.
 
 ## Sécurité et limites
 
@@ -127,10 +128,10 @@ Les POST utilisent Content-Type: application/json. Aucun traitement vidéo ni al
 ```sh
 docker compose exec backend python smoke.py
 docker compose exec backend python monitoring_check.py
-docker compose logs --tail=50 backend mqtt postgres prometheus grafana
+docker compose logs --tail=50 backend vision mqtt postgres prometheus grafana
 docker compose down
 ```
 
-Le smoke test envoie des fixtures explicitement simulées et vérifie les permissions, rejets, doublons et métriques. Il ne teste aucun modèle. Le second contrôle vérifie le scrape, les sources Grafana, les requêtes des panneaux et les droits SQL en lecture seule.
+Le smoke test envoie des fixtures explicitement simulées et vérifie les permissions, rejets, doublons et métriques. Le second contrôle vérifie le scrape, les sources Grafana, les requêtes des panneaux et les droits SQL en lecture seule. La santé du service vision est contrôlée par Compose ; son endpoint `/analyze` peut être testé avec une image JPEG.
 
-Ports configurables dans un .env local : API_PORT (8080), GRAFANA_PORT (3000), MQTT_PORT (8883), MQTT_WS_PORT (9001).
+Ports configurables dans un `.env` local : `API_PORT` (8080), `GRAFANA_PORT` (3000), `MQTT_PORT` (8883), `VISION_PORT` (8090).

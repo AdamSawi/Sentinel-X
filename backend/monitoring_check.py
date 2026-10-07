@@ -37,7 +37,7 @@ dashboard = get('http://grafana:3000/api/dashboards/uid/sentinel-overview')['das
 queries = []
 for panel in dashboard['panels']:
     for target in panel.get('targets', []):
-        queries.append({**target, 'refId': str(panel['id']), 'datasource': panel['datasource'],
+        queries.append({**target, 'refId': f"{panel['id']}-{target['refId']}", 'datasource': panel['datasource'],
                         'intervalMs': 5000, 'maxDataPoints': 1000})
 now = int(time.time() * 1000)
 results = get('http://grafana:3000/api/ds/query', {'from': str(now - 86400000), 'to': str(now), 'queries': queries})

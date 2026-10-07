@@ -6,20 +6,21 @@ Projet du Workshop EPSI BAC+4 2026, Mission Sentinel-X : l’Avant-Poste Industr
 
 L’équipe ne disposant ni de matériel ni de boîtier, le prototype sera entièrement logiciel. Les sources physiques seront simulées ou rejouées ; les échanges réseau, le stockage, les traitements IA et les contrôles de sécurité devront fonctionner réellement.
 
-> État actuel : environnement Docker Compose, broker MQTT sécurisé, API de réception, stockage PostgreSQL, Prometheus et Grafana disponibles. Les simulateurs et les modèles de détection restent à développer et connecter par les collègues. Aucun résultat IA n’est généré par cette infrastructure.
+> État actuel : environnement Docker Compose complet avec broker MQTT sécurisé, API, PostgreSQL, Prometheus, Grafana et service vision YOLO/MediaPipe. La webcam Windows est transmise au conteneur par le navigateur afin d’éviter les limites USB de Docker Desktop.
 
 ## Organisation
 
-Quatre dossiers, sans frontend maison ni service supplémentaire de type « Engine ».
+Le dépôt reste organisé par responsabilités, sans frontend applicatif supplémentaire ni service de type « Engine ».
 
 | Dossier | Contenu |
 | --- | --- |
 | [simulation/](simulation/) | Capteurs virtuels, scénarios reproductibles, sources vidéo et actionneurs simulés |
 | [backend/](backend/) | Ingestion, API et stockage ; réception des résultats IA des collègues |
+| [modeles-ia/](modeles-ia/) | Notebooks originaux du collègue et service vision Docker YOLO/MediaPipe |
 | [infra/](infra/) | Docker Compose, Mosquitto, PostgreSQL, Prometheus et Grafana provisionné |
 | [docs/](docs/) | Architecture, interfaces, protocole de démonstration et résultats |
 
-Les responsabilités de `api`, `database` et `modeles-ia` sont regroupées dans `backend`. `iot` est remplacé par `simulation`. Le travail de `cyber` rejoint `infra` et les contrôles applicatifs du backend ; la sécurité reste transverse.
+Les responsabilités d’API et de stockage sont regroupées dans `backend`. `iot` est remplacé par `simulation`. Le travail de `cyber` rejoint `infra` et les contrôles applicatifs du backend ; la sécurité reste transverse. La vision reste isolée afin que son traitement CPU ne bloque pas l’ingestion.
 
 ## Architecture visée
 
@@ -27,7 +28,9 @@ Les responsabilités de `api`, `database` et `modeles-ia` sont regroupées dans 
 flowchart LR
     Sim[Capteurs virtuels] -->|MQTTS| MQTT[Mosquitto]
     MQTT --> Backend[API : ingestion et stockage]
-    Video[Composant IA du collègue] -->|Événements analysés| Backend
+    Camera[Webcam via navigateur] --> Vision[Service vision Docker]
+    Vision -->|Événements analysés| Backend
+    Vision -->|Frames annotées| Grafana
     Backend --> DB[(PostgreSQL)]
     Infra[Logs et santé des services] --> Backend
     Backend -->|Scrape /metrics| Prom[Prometheus]
@@ -45,7 +48,7 @@ Les composants des collègues produisent les mesures et les résultats d’analy
 | --- | --- |
 | Mesures synthétiques | Python + NumPy, scénarios JSON et graine fixée |
 | Transport sécurisé | Client Paho MQTT et Mosquitto avec TLS |
-| Vidéo | Fichier local lu avec OpenCV, puis modèle de détection de personnes à choisir |
+| Vidéo | Webcam navigateur, YOLO11n et MediaPipe dans le conteneur vision |
 | Analyse temporelle | Variables sur fenêtres et modèle statistique ou scikit-learn, évalué face à une référence simple |
 | Backend | FastAPI, validation et accès au stockage |
 | Stockage | PostgreSQL : mesures, événements et rejets persistants |
@@ -130,13 +133,14 @@ docker compose down
 | Service | Adresse locale | Port |
 | --- | --- | --- |
 | Grafana | http://localhost:3000 | 3000 |
+| Vision IA / test caméra | http://localhost:8090 | 8090 |
 | API | http://localhost:8080 | 8080 |
 | MQTT TLS | localhost | 8883 |
-| MQTT WebSocket TLS | wss://localhost:9001 | 9001 |
+| MQTT WebSocket TLS | Réseau Docker interne | 9001, non publié |
 | Prometheus | Interne Docker uniquement | 9090, non publié |
 | PostgreSQL | Interne Docker uniquement | 5432, non publié |
 
-Les ports publiés écoutent uniquement sur 127.0.0.1. Le monitoring reste en attente tant qu’aucun producteur n’envoie de données.
+Les ports publiés écoutent uniquement sur 127.0.0.1. Les capteurs restent en attente tant qu’aucun simulateur n’envoie de données. La vision fonctionne dès que l’utilisateur autorise la webcam dans Grafana.
 
 ### Identifiants Grafana de l’instance actuelle
 
@@ -150,6 +154,8 @@ Ce mot de passe correspond à l’instance existante. Une nouvelle installation 
 docker compose exec mqtt cat /run/sentinel/grafana-admin.password
 ```
 
-Après connexion, ouvrir le dashboard **Sentinel-X · Analyse et sécurité** dans le dossier **Sentinel-X**.
+Après connexion, ouvrir le dashboard **Sentinel-X · Centre de contrôle** dans le dossier **Sentinel-X**, cliquer sur **ACTIVER LA CAMÉRA**, puis autoriser son utilisation dans le navigateur.
+
+Le traitement intégré ne nécessite pas Jupyter. Les notebooks originaux restent disponibles comme travail source du collègue. Voir [le guide du service vision](modeles-ia/README.md) pour le flux navigateur, les modèles et les données transmises.
 
 Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API événements, l’accès Grafana, les contrôles de santé et les limites de cette configuration locale.
