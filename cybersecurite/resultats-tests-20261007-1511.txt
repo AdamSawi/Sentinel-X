@@ -1,0 +1,45 @@
+=== Tests de sécurité Sentinel-X - 07/10/2026 15:11:44 - run cyber-1791378704 ===
+
+1. MQTT : chiffrement et authentification
+  [OK]    Connexion anonyme refusée
+  [OK]    Mauvais mot de passe refusé
+  [OK]    Connexion sans TLS refusée sur 8883
+  [OK]    Aucun port MQTT en clair (1883)
+
+2. MQTT : droits par compte (ACL)
+  [OK]    Compte 'sensors' publiant un événement vision : non stocké (attendu absent, obtenu absent)
+  [OK]    Témoin : compte 'vision' autorisé : stocké (attendu present, obtenu present)
+
+3. API : authentification des producteurs
+  [OK]    POST sans jeton (attendu 401, obtenu 401)
+  [OK]    POST avec un faux jeton (attendu 401, obtenu 401)
+  [OK]    POST avec le jeton d'un autre rôle (vision -> mesures) (attendu 401, obtenu 401)
+
+4. API : validation des données
+  [OK]    JSON mal formé (attendu 422, obtenu 422)
+  [OK]    Température hors limites (999 °C) (attendu 422, obtenu 422)
+  [OK]    Champ inconnu injecté (attendu 422, obtenu 422)
+  [OK]    Message trop gros (20 Ko) (attendu 413, obtenu 413)
+  [OK]    Rejeu du même message : pas de doublon
+
+5. Correctifs de l'étape 2
+  [OK]    Documentation /docs de l'API masquée (attendu 404, obtenu 404)
+  [OK]    Service vision : données non JPEG refusées (attendu 415, obtenu 415)
+
+6. Grafana et base de données
+  [OK]    Grafana sans connexion (attendu 401, obtenu 401)
+  [OK]    Compte Grafana en lecture seule : écriture refusée
+
+7. Exposition réseau
+  [OK]    Port 5432 (interne) non publié sur la VM (attendu ferme, obtenu ferme)
+  [OK]    Port 9090 (interne) non publié sur la VM (attendu ferme, obtenu ferme)
+  [OK]    Port 3000 non joignable depuis le réseau (192.168.211.130) (attendu ferme, obtenu ferme)
+  [OK]    Port 8080 non joignable depuis le réseau (192.168.211.130) (attendu ferme, obtenu ferme)
+  [OK]    Port 8090 non joignable depuis le réseau (192.168.211.130) (attendu ferme, obtenu ferme)
+  [OK]    Port 8883 non joignable depuis le réseau (192.168.211.130) (attendu ferme, obtenu ferme)
+
+8. Limitation de débit (dernier test : bloque le compte 'sensors' en HTTP pendant 1 minute)
+  [OK]    Rafale de 125 requêtes : 9 bloquées (429)
+
+=== Résultat : 25 OK, 0 échec(s) - détail enregistré dans cybersecurite/resultats-tests-20261007-1511.txt ===
+Les rejets apparaissent dans Grafana, panneau des événements de sécurité.

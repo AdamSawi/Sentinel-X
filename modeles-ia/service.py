@@ -152,6 +152,8 @@ def health():
 
 @app.post('/analyze')
 async def analyze_frame(request: FastAPIRequest):
+    if request.headers.get('content-type', '').split(';')[0].strip() != 'image/jpeg':
+        raise HTTPException(415, 'Seules les images JPEG sont acceptees')
     content = await request.body()
     if not content or len(content) > MAX_IMAGE_BYTES:
         raise HTTPException(413, 'Image absente ou trop volumineuse')

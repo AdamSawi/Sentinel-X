@@ -198,7 +198,8 @@ async def lifespan(app):
     client.loop_stop()
 
 
-app = FastAPI(title='Sentinel-X Integration API', lifespan=lifespan)
+app = FastAPI(title='Sentinel-X Integration API', lifespan=lifespan,
+              docs_url=None, redoc_url=None, openapi_url=None)
 
 
 def rate_limit(key, maximum=120):
