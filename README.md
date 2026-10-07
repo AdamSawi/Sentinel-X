@@ -100,6 +100,7 @@ git clone https://github.com/AdamSawi/Sentinel-X.git
 cd Sentinel-X
 docker compose up --build -d --remove-orphans --wait
 ```
+Pour le mdp : docker compose exec mqtt cat /run/sentinel/grafana-admin.password
 
 ### Ports et accès
 
