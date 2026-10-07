@@ -115,40 +115,6 @@ cd Sentinel-X
 docker compose up --build -d --remove-orphans --wait
 ```
 
-Le premier build peut prendre plusieurs minutes : il construit notamment l’image vision CPU avec PyTorch, YOLO11n et MediaPipe.
-
-Depuis un dépôt déjà cloné, reconstruire et démarrer les services :
-
-```sh
-docker compose up --build -d --remove-orphans --wait
-```
-
-Vérifier leur état et consulter les logs :
-
-```sh
-docker compose ps
-docker compose logs --tail=50 vision backend mqtt postgres prometheus grafana
-```
-
-Arrêter les services en conservant les données et les identifiants :
-
-```sh
-docker compose down
-```
-
-Relancer les conteneurs existants sans reconstruire les images :
-
-```sh
-docker compose up -d --wait
-```
-
-Récupérer une nouvelle version du projet et reconstruire ce qui a changé :
-
-```sh
-git pull
-docker compose up --build -d --remove-orphans --wait
-```
-
 ### Ports et accès
 
 | Service | Adresse locale | Port |
@@ -160,23 +126,3 @@ docker compose up --build -d --remove-orphans --wait
 | MQTT WebSocket TLS | Réseau Docker interne | 9001, non publié |
 | Prometheus | Interne Docker uniquement | 9090, non publié |
 | PostgreSQL | Interne Docker uniquement | 5432, non publié |
-
-Les ports publiés écoutent uniquement sur 127.0.0.1. Les capteurs restent en attente tant qu’aucun simulateur n’envoie de données. La vision fonctionne dès que l’utilisateur autorise la webcam dans Grafana.
-
-### Identifiants Grafana de l’instance actuelle
-
-- URL : **http://localhost:3000**
-- Utilisateur : **admin**
-- Mot de passe : `c5da48c1a93da9c6b378852ac211e3d79fd5d0f698506535`
-
-Ce mot de passe correspond à l’instance existante. Une nouvelle installation avec des volumes neufs génère son propre mot de passe ; pour le récupérer :
-
-```sh
-docker compose exec mqtt cat /run/sentinel/grafana-admin.password
-```
-
-Après connexion, ouvrir le dashboard **Sentinel-X · Centre de contrôle** dans le dossier **Sentinel-X**, cliquer sur **ACTIVER LA CAMÉRA**, puis autoriser son utilisation dans le navigateur.
-
-Le traitement intégré ne nécessite pas Jupyter. Les notebooks originaux restent disponibles comme travail source du collègue. Voir [le guide du service vision](modeles-ia/README.md) pour le flux navigateur, les modèles et les données transmises.
-
-Voir le [guide Docker et les contrats de connexion](docs/docker.md) pour MQTT, l’API événements, l’accès Grafana, les contrôles de santé et les limites de cette configuration locale.
