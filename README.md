@@ -103,6 +103,9 @@ docker compose up --build -d --remove-orphans --wait
 Pour le mdp Grafana : docker compose exec mqtt cat /run/sentinel/grafana-admin.password
 user : admin
 
+## Lancement après installation 
+docker compose up -d --wait
+
 ### Ports et accès
 
 | Service | Adresse locale | Port |
