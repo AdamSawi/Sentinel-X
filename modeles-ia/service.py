@@ -22,8 +22,14 @@ from ultralytics import YOLO
 MODELS = Path('/models')
 CREDS = Path('/run/sentinel')
 MAX_IMAGE_BYTES = 2_000_000
+VISION_DEVICE = os.environ.get('VISION_DEVICE', 'cpu')
 lock = threading.Lock()
 last_event = 0.0
+
+if VISION_DEVICE != 'cpu':
+    import torch
+    if not torch.cuda.is_available():
+        raise RuntimeError('VISION_DEVICE demande CUDA, mais aucun GPU NVIDIA n’est accessible')
 
 person_model = YOLO(str(MODELS / 'yolo11n.pt'))
 face_model = vision.FaceLandmarker.create_from_options(
@@ -77,7 +83,7 @@ def analyze(jpeg):
     if frame is None:
         raise ValueError('Image JPEG invalide')
     result = person_model.predict(frame, classes=[0], conf=0.25, imgsz=640,
-                                  device='cpu', verbose=False)[0]
+                                  device=VISION_DEVICE, verbose=False)[0]
     persons = 0
     faces = 0
     best_confidence = 0.0
@@ -118,7 +124,8 @@ def index():
 
 @app.get('/health')
 def health():
-    return {'status': 'ok', 'model': 'yolo11n+mediapipe', 'camera': 'browser'}
+    return {'status': 'ok', 'model': 'yolo11n+mediapipe', 'camera': 'browser',
+            'device': VISION_DEVICE}
 
 
 @app.post('/analyze')

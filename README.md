@@ -106,6 +106,12 @@ user : admin
 ## Lancement après installation 
 docker compose up -d --wait
 
+Avec une carte graphique NVIDIA compatible Docker Desktop/WSL2 :
+
+```sh
+docker compose -f compose.yaml -f compose.gpu.yaml up --build -d --remove-orphans --wait
+```
+
 ### Ports et accès
 
 | Service | Adresse locale | Port |

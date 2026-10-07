@@ -38,4 +38,14 @@ Le service vision est également consultable directement sur `http://localhost:8
 
 Chaque présence détectée génère au maximum un événement par seconde avec : nombre de personnes, nombre de visages, confiance YOLO et temps de traitement. Le backend valide et stocke ces métadonnées, puis alimente les vues PostgreSQL et les métriques Prometheus du dashboard.
 
-Le service utilise exclusivement le CPU pour rester compatible avec Docker Desktop sans configuration CUDA. Les réglages sont volontairement limités à 640×360 côté navigateur et `imgsz=640` côté YOLO afin de préserver la stabilité de la démonstration.
+Le service utilise le CPU par défaut pour rester compatible avec Docker Desktop sans configuration CUDA. Les réglages sont volontairement limités à 640×360 côté navigateur et `imgsz=640` côté YOLO afin de préserver la stabilité de la démonstration.
+
+## Variante NVIDIA
+
+Le lancement standard reste en CPU. Sur un poste Windows avec une carte NVIDIA, les pilotes compatibles WSL2 et l’accès GPU activé dans Docker Desktop, lancer :
+
+```sh
+docker compose -f compose.yaml -f compose.gpu.yaml up --build -d --remove-orphans --wait
+```
+
+Cette surcharge remplace uniquement l’image du service `vision` par une image PyTorch CUDA et sélectionne le GPU `0`. Grafana, l’API et les autres services restent identiques.
