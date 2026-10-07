@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+
+    <title>SENTINEL-X</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 40px;
+        background: #f4f4f4;
+      }
+
+      h1 {
+        text-align: center;
+      }
+
+      .card {
+        background: white;
+        padding: 25px;
+        margin: 20px auto;
+        max-width: 800px;
+        border-radius: 10px;
+      }
+
+      .temperature {
+        font-size: 40px;
+        font-weight: bold;
+      }
+
+      .normal {
+        color: green;
+        font-weight: bold;
+      }
+
+      .alert {
+        color: red;
+        font-weight: bold;
+      }
+
+      .ai-normal {
+        color: green;
+        font-size: 22px;
+        font-weight: bold;
+      }
+
+      .ai-alert {
+        color: red;
+        font-size: 22px;
+        font-weight: bold;
+      }
+
+      .prediction {
+        font-size: 32px;
+        font-weight: bold;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        text-align: center;
+      }
+
+      canvas {
+        max-height: 350px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>SENTINEL-X</h1>
+
+    <div class="card">
+      <h2>🌡️ Surveillance thermique</h2>
+
+      <p class="temperature"><span id="temperature">--</span> °C</p>
+
+      <p>
+        État :
+
+        <span id="status">--</span>
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>🤖 Prédiction IA</h2>
+
+      <p>Température prévue :</p>
+
+      <p class="prediction"><span id="prediction">--</span> °C</p>
+
+      <p>
+        Analyse :
+
+        <span id="aiMessage">--</span>
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>📈 Évolution de la température</h2>
+
+      <canvas id="temperatureChart"></canvas>
+    </div>
+
+    <div class="card">
+      <h2>📋 Historique</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Heure</th>
+
+            <th>Température</th>
+
+            <th>État</th>
+          </tr>
+        </thead>
+
+        <tbody id="history"></tbody>
+      </table>
+    </div>
+
+    <script>
+      let temperatureChart;
+
+      function createChart(labels, temperatures) {
+        const ctx = document
+          .getElementById("temperatureChart")
+          .getContext("2d");
+
+        if (temperatureChart) {
+          temperatureChart.destroy();
+        }
+
+        temperatureChart = new Chart(ctx, {
+          type: "line",
+
+          data: {
+            labels: labels,
+
+            datasets: [
+              {
+                label: "Température (°C)",
+
+                data: temperatures,
+
+                borderWidth: 2,
+
+                tension: 0.3,
+              },
+            ],
+          },
+
+          options: {
+            responsive: true,
+
+            scales: {
+              y: {
+                title: {
+                  display: true,
+
+                  text: "Température (°C)",
+                },
+              },
+
+              x: {
+                title: {
+                  display: true,
+
+                  text: "Heure",
+                },
+              },
+            },
+          },
+        });
+      }
+
+      async function loadTemperatures() {
+        try {
+          const response = await fetch("/temperatures");
+
+          const data = await response.json();
+
+          if (data.length === 0) {
+            return;
+          }
+
+          const latest = data[0];
+
+          document.getElementById("temperature").textContent =
+            latest.temperature;
+
+          const statusElement = document.getElementById("status");
+
+          statusElement.textContent = latest.status;
+
+          if (latest.status === "ALERTE SURCHAUFFE") {
+            statusElement.className = "alert";
+          } else {
+            statusElement.className = "normal";
+          }
+
+          const history = document.getElementById("history");
+
+          history.innerHTML = "";
+
+          data.forEach((item) => {
+            const row = document.createElement("tr");
+
+            row.innerHTML = `
+
+                <td>${item.timestamp}</td>
+
+                <td>${item.temperature} °C</td>
+
+                <td>${item.status}</td>
+
+            `;
+
+            history.appendChild(row);
+          });
+
+          const chartData = [...data].reverse();
+
+          const labels = chartData.map((item) => item.timestamp);
+
+          const temperatures = chartData.map((item) => item.temperature);
+
+          createChart(labels, temperatures);
+        } catch (error) {
+          console.error("Erreur historique :", error);
+        }
+      }
+
+      async function loadPrediction() {
+        try {
+          const response = await fetch("/ai/prediction");
+
+          const data = await response.json();
+
+          const predictionElement = document.getElementById("prediction");
+
+          const messageElement = document.getElementById("aiMessage");
+
+          if (data.prediction === null) {
+            predictionElement.textContent = "--";
+
+            messageElement.textContent = data.message;
+
+            messageElement.className = "";
+
+            return;
+          }
+
+          predictionElement.textContent = data.prediction;
+
+          messageElement.textContent = data.message;
+
+          if (data.risk === true) {
+            messageElement.className = "ai-alert";
+          } else {
+            messageElement.className = "ai-normal";
+          }
+        } catch (error) {
+          console.error("Erreur IA :", error);
+        }
+      }
+
+      loadTemperatures();
+
+      loadPrediction();
+
+      setInterval(loadTemperatures, 2000);
+
+      setInterval(loadPrediction, 2000);
+    </script>
+  </body>
+</html>
