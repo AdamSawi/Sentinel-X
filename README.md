@@ -107,9 +107,17 @@ Préparer le dossier technique avec schémas et poster A3, le support de soutena
 
 ## Installation
 
-Docker Desktop démarré ou Docker Engine avec Compose v2 est nécessaire.
+Docker Desktop démarré ou Docker Engine avec Compose v2 est nécessaire. Pour une première installation :
 
-Depuis la racine du dépôt, construire et démarrer les services :
+```sh
+git clone https://github.com/AdamSawi/Sentinel-X.git
+cd Sentinel-X
+docker compose up --build -d --remove-orphans --wait
+```
+
+Le premier build peut prendre plusieurs minutes : il construit notamment l’image vision CPU avec PyTorch, YOLO11n et MediaPipe.
+
+Depuis un dépôt déjà cloné, reconstruire et démarrer les services :
 
 ```sh
 docker compose up --build -d --remove-orphans --wait
@@ -119,13 +127,26 @@ Vérifier leur état et consulter les logs :
 
 ```sh
 docker compose ps
-docker compose logs --tail=50 backend mqtt postgres prometheus grafana
+docker compose logs --tail=50 vision backend mqtt postgres prometheus grafana
 ```
 
 Arrêter les services en conservant les données et les identifiants :
 
 ```sh
 docker compose down
+```
+
+Relancer les conteneurs existants sans reconstruire les images :
+
+```sh
+docker compose up -d --wait
+```
+
+Récupérer une nouvelle version du projet et reconstruire ce qui a changé :
+
+```sh
+git pull
+docker compose up --build -d --remove-orphans --wait
 ```
 
 ### Ports et accès
