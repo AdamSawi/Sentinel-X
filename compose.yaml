@@ -84,6 +84,7 @@ services:
   vision:
     <<: *runtime
     build: ./modeles-ia
+    group_add: ['1883']
     depends_on:
       backend:
         condition: service_healthy

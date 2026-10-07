@@ -23,6 +23,7 @@ MODELS = Path('/models')
 CREDS = Path('/run/sentinel')
 MAX_IMAGE_BYTES = 2_000_000
 VISION_DEVICE = os.environ.get('VISION_DEVICE', 'cpu')
+FACE_MIN_SIDE = 256
 lock = threading.Lock()
 last_event = 0.0
 
@@ -43,6 +44,13 @@ face_model = vision.FaceLandmarker.create_from_options(
 )
 
 app = FastAPI(title='Sentinel-X Vision')
+face_connections = vision.FaceLandmarksConnections
+
+
+def draw_connections(frame, points, connections, color, thickness=1):
+    for connection in connections:
+        cv2.line(frame, points[connection.start], points[connection.end], color,
+                 thickness, cv2.LINE_AA)
 
 
 def report_event(persons, faces, confidence, processing_ms):
@@ -93,20 +101,38 @@ def analyze(jpeg):
         confidence = float(box.conf[0])
         persons += 1
         best_confidence = max(best_confidence, confidence)
-        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 190, 255), 2)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 160, 0), 2)
         cv2.putText(frame, f'personne {confidence:.2f}', (x1, max(22, y1 - 7)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 190, 255), 2)
-        head_y2 = min(height, y1 + max(1, int((y2 - y1) * 0.4)))
-        crop = frame[max(0, y1):head_y2, max(0, x1):min(width, x2)]
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 160, 0), 2)
+        box_width, box_height = x2 - x1, y2 - y1
+        head_x1 = max(0, int(x1 - 0.1 * box_width))
+        head_x2 = min(width, int(x2 + 0.1 * box_width))
+        head_y1 = max(0, int(y1 - 0.05 * box_height))
+        head_y2 = min(height, int(y1 + 0.4 * box_height))
+        crop = frame[head_y1:head_y2, head_x1:head_x2]
         if crop.size == 0:
             continue
         rgb = cv2.cvtColor(crop, cv2.COLOR_BGR2RGB)
+        scale = FACE_MIN_SIDE / max(crop.shape[:2])
+        if scale > 1:
+            rgb = cv2.resize(rgb, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        rgb = np.ascontiguousarray(rgb)
         detection = face_model.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb))
         if detection.face_landmarks:
             faces += 1
-            for landmark in detection.face_landmarks[0][::20]:
-                point = (x1 + int(landmark.x * crop.shape[1]), y1 + int(landmark.y * crop.shape[0]))
-                cv2.circle(frame, point, 1, (0, 255, 80), -1)
+            points = [
+                (head_x1 + int(landmark.x * crop.shape[1]),
+                 head_y1 + int(landmark.y * crop.shape[0]))
+                for landmark in detection.face_landmarks[0]
+            ]
+            draw_connections(frame, points, face_connections.FACE_LANDMARKS_TESSELATION,
+                             (90, 90, 90))
+            if len(points) > 473:
+                for index in (468, 473):
+                    cv2.circle(frame, points[index], 3, (0, 0, 255), -1, cv2.LINE_AA)
+            face_x1, face_y1 = [int(value) for value in np.min(points, axis=0)]
+            face_x2, face_y2 = [int(value) for value in np.max(points, axis=0)]
+            cv2.rectangle(frame, (face_x1, face_y1), (face_x2, face_y2), (0, 255, 0), 2)
     processing_ms = (time.perf_counter() - started) * 1000
     cv2.putText(frame, f'YOLO + visage | {persons} personne(s) | {faces} visage(s) | {processing_ms:.0f} ms',
                 (12, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 80), 2)
@@ -115,6 +141,11 @@ def analyze(jpeg):
     if not ok:
         raise ValueError('Encodage impossible')
     return encoded.tobytes()
+
+
+def analyze_locked(jpeg):
+    with lock:
+        return analyze(jpeg)
 
 
 @app.get('/')
@@ -134,8 +165,7 @@ async def analyze_frame(request: FastAPIRequest):
     if not content or len(content) > MAX_IMAGE_BYTES:
         raise HTTPException(413, 'Image absente ou trop volumineuse')
     try:
-        with lock:
-            output = await asyncio.to_thread(analyze, content)
+        output = await asyncio.to_thread(analyze_locked, content)
     except ValueError as error:
         raise HTTPException(422, str(error)) from error
     return Response(output, media_type='image/jpeg', headers={'Cache-Control': 'no-store'})
