@@ -1,0 +1,9 @@
+py -m pip install numpy==1.26.4 pandas==2.1.4
+py -m pip install -U scikit-learn
+
+pip install fastapi uvicorn
+pip install requests
+uvicorn server:app --host 0.0.0.0 --port 8000
+
+winget install --id Cloudflare.cloudflared
+cloudflared tunnel --url http://localhost:8000
