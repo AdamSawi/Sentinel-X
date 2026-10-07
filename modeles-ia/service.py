@@ -44,13 +44,6 @@ face_model = vision.FaceLandmarker.create_from_options(
 )
 
 app = FastAPI(title='Sentinel-X Vision')
-face_connections = vision.FaceLandmarksConnections
-
-
-def draw_connections(frame, points, connections, color, thickness=1):
-    for connection in connections:
-        cv2.line(frame, points[connection.start], points[connection.end], color,
-                 thickness, cv2.LINE_AA)
 
 
 def report_event(persons, faces, confidence, processing_ms):
@@ -125,8 +118,6 @@ def analyze(jpeg):
                  head_y1 + int(landmark.y * crop.shape[0]))
                 for landmark in detection.face_landmarks[0]
             ]
-            draw_connections(frame, points, face_connections.FACE_LANDMARKS_TESSELATION,
-                             (90, 90, 90))
             if len(points) > 473:
                 for index in (468, 473):
                     cv2.circle(frame, points[index], 3, (0, 0, 255), -1, cv2.LINE_AA)
