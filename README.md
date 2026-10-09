@@ -123,7 +123,7 @@ docker compose -f compose.yaml -f compose.gpu.yaml up --build -d --remove-orphan
 | --- | --- | --- |
 | Grafana | http://localhost:3000 | 3000 |
 | Vision IA / test caméra | http://localhost:8090 | 8090 |
-| Simulation thermique / curseur | http://localhost:8091/control | 8091 |
+| Simulation thermique / circuit animé en direct | http://localhost:8091/control | 8091 |
 | API | http://localhost:8080 | 8080 |
 | MQTT TLS | localhost | 8883 |
 | MQTT WebSocket TLS | Réseau Docker interne | 9001, non publié |

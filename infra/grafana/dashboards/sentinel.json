@@ -3,7 +3,7 @@
   "title": "Sentinel-X · Centre de contrôle",
   "tags": ["sentinel", "monitoring", "vision"],
   "schemaVersion": 39,
-  "version": 3,
+  "version": 4,
   "editable": false,
   "refresh": "5s",
   "timezone": "browser",
@@ -105,9 +105,9 @@
     },
     {
       "id": 9,
-      "title": "SIMULATION · faire varier la température",
+      "title": "SIMULATION EN DIRECT · capteur, LED et alarme",
       "type": "text",
-      "gridPos": {"x": 0, "y": 27, "w": 12, "h": 7},
+      "gridPos": {"x": 0, "y": 27, "w": 12, "h": 12},
       "options": {"mode": "html", "content": "<iframe src=\"http://localhost:8091/control\" title=\"Simulation thermique\" style=\"width:100%;height:100%;border:0\"></iframe>"}
     },
     {

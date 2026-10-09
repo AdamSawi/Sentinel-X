@@ -4,23 +4,62 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Simulation thermique</title>
 <style>
-body{background:#111217;color:#eee;font:16px system-ui;margin:18px}input{width:100%}output{font-size:30px}button{padding:8px;margin-top:12px}#status{font-size:13px}
+body{background:#111217;color:#eee;font:14px system-ui;margin:12px}input{width:100%}output{font-size:24px}button{padding:8px;margin-top:8px;background:#24334a;color:white;border:1px solid #53647b;border-radius:5px}#status{font-size:12px}h3{margin:4px 0}svg{width:100%;max-height:235px}svg text{font:12px system-ui;fill:#eee}.wire{fill:none;stroke:#546c91;stroke-width:3}.live .wire{stroke:#37d790;stroke-dasharray:7 5;animation:flow 1s linear infinite}#circuit{--led:#555}.led{fill:var(--led)}.critical .led{animation:blink .6s infinite}#alarm{fill:#394451}.critical #alarm{fill:#f54f55}.label{color:#aaa;font-size:11px}#notice{min-height:18px}@keyframes flow{to{stroke-dashoffset:-24}}@keyframes blink{50%{opacity:.25}}
 </style>
-<h3>Capteur de température simulé</h3>
-<output id="value">25 °C</output>
+<h3>Simulation thermique · circuit animé</h3>
+<div class="label">Visualisation logicielle des mesures · aucune émulation du firmware ESP8266</div>
+<svg id="circuit" viewBox="0 0 650 220" role="img" aria-label="Capteur thermique connecté à une carte ESP8266, une LED et une alarme">
+<path class="wire" d="M130 92H225 M130 125H195V165H225 M390 85H460V66H525 M390 135H450V163H525"/>
+<rect x="25" y="47" width="105" height="115" rx="10" fill="#266da3" stroke="#91bbd8"/>
+<g stroke="#b8d8e8" stroke-width="3"><path d="M45 60V105 M60 60V105 M75 60V105 M90 60V105 M105 60V105"/></g>
+<text x="40" y="124">TEMPÉRATURE</text><text id="sensor" x="42" y="145">— °C</text>
+<rect x="225" y="30" width="165" height="165" rx="9" fill="#123d36" stroke="#4fb694"/>
+<rect x="250" y="73" width="112" height="76" fill="#4a5362" stroke="#c4cbd5"/>
+<text x="267" y="105">ESP8266</text><text x="268" y="127">virtuel</text>
+<path d="M246 48H271V62H291V48H313V62H337V48H370" stroke="#c9b97a" stroke-width="4" fill="none"/>
+<text x="246" y="175">MQTTS → backend</text>
+<circle class="led" cx="548" cy="65" r="22" stroke="#bcc5d0" stroke-width="3"/>
+<text x="579" y="70">LED</text>
+<circle id="alarm" cx="548" cy="163" r="26" stroke="#bcc5d0" stroke-width="3"/>
+<path d="M540 152L560 174 M560 152L540 174" stroke="white" stroke-width="2"/>
+<text x="584" y="166">ALARME</text>
+<text id="measureTime" x="25" y="213">En attente d’une mesure publiée</text>
+</svg>
+<p id="notice" role="status">Connexion au simulateur…</p>
+<output id="value">Consigne : 25 °C</output>
 <input id="temperature" aria-label="Température simulée" type="range" min="0" max="100" step="1" value="25">
 <button id="apply">Appliquer la température</button>
-<p>Mesure publiée chaque seconde · seuil du modèle : 70 °C</p>
+<button id="sound">Activer le son de l’alarme</button>
+<p id="prediction">Prédiction du modèle : en attente</p>
 <p id="status">Connexion…</p>
 <script>
 const slider=document.querySelector('#temperature'),value=document.querySelector('#value'),status=document.querySelector('#status');
-slider.oninput=()=>value.textContent=slider.value+' °C';
+const circuit=document.querySelector('#circuit'),notice=document.querySelector('#notice');
+let initialized=false,lastState,lastUpdate=0,audio;
+slider.oninput=()=>value.textContent='Consigne : '+slider.value+' °C';
+function render(state){
+  lastState=state;lastUpdate=Date.now();
+  if(!initialized){slider.value=state.temperature;slider.oninput();initialized=true;}
+  const sample=state.sample;
+  const fresh=sample && Date.now()-Date.parse(sample.published_at)<5000;
+  const active=state.mqtt_connected && !state.error && fresh;
+  const prediction=sample?.ai_prediction;
+  const critical=active && sample.temperature>70;
+  circuit.classList.toggle('live',Boolean(active));
+  circuit.classList.toggle('critical',Boolean(critical));
+  circuit.style.setProperty('--led',active?(critical?'#f54f55':prediction?.risk?'#ffb34d':'#37d790'):'#555');
+  document.querySelector('#sensor').textContent=active?sample.temperature.toFixed(1)+' °C':'— °C';
+  document.querySelector('#measureTime').textContent=sample?'Mesure publiée : '+new Date(sample.published_at).toLocaleTimeString():'En attente d’une mesure publiée';
+  notice.textContent=active?(prediction?.message||sample.status):'Flux indisponible · '+(state.error||'en attente de données récentes');
+  document.querySelector('#prediction').textContent=active && prediction?.prediction!=null?'Prochaine mesure estimée : '+prediction.prediction+' °C':'Prédiction indisponible';
+  status.textContent=state.error||(state.mqtt_connected?'MQTTS connecté · mise à jour chaque seconde':'MQTTS déconnecté');
+}
 async function refresh(){
   try{
     const response=await fetch('/simulation');
     if(!response.ok)throw Error('HTTP '+response.status);
     const state=await response.json();
-    status.textContent=state.error|| (state.mqtt_connected?'MQTTS connecté · consigne '+state.temperature+' °C':'Connexion MQTTS…');
+    render(state);
   }catch(error){status.textContent=error.message;}
 }
 async function apply(){
@@ -32,7 +71,24 @@ async function apply(){
 }
 slider.onchange=apply;
 document.querySelector('#apply').onclick=apply;
-fetch('/simulation').then(r=>r.json()).then(s=>{slider.value=s.temperature;value.textContent=s.temperature+' °C';}).catch(()=>{});
-refresh();setInterval(refresh,2000);
+const stream=new EventSource('/live');
+stream.onmessage=event=>render(JSON.parse(event.data));
+stream.onerror=()=>{circuit.classList.remove('live','critical');circuit.style.setProperty('--led','#555');status.textContent='Flux interrompu · reconnexion…';};
+document.querySelector('#sound').onclick=async()=>{
+  if(audio){await audio.close();audio=null;document.querySelector('#sound').textContent='Activer le son de l’alarme';return;}
+  audio=new (window.AudioContext||window.webkitAudioContext)();await audio.resume();
+  document.querySelector('#sound').textContent='Couper le son';
+};
+setInterval(()=>{
+  const sample=lastState?.sample;
+  const fresh=sample && Date.now()-Date.parse(sample.published_at)<5000 && Date.now()-lastUpdate<5000;
+  if(!fresh){circuit.classList.remove('live','critical');circuit.style.setProperty('--led','#555');document.querySelector('#sensor').textContent='— °C';notice.textContent='En attente de données récentes';}
+  if(audio && audio.state==='running' && fresh && lastState.mqtt_connected && !lastState.error && sample.temperature>70){
+    const oscillator=audio.createOscillator(),gain=audio.createGain();
+    oscillator.frequency.value=880;gain.gain.value=.04;
+    oscillator.connect(gain);gain.connect(audio.destination);oscillator.start();oscillator.stop(audio.currentTime+.15);
+  }
+},1000);
+refresh();
 </script>
 </html>

@@ -1,4 +1,5 @@
 """Adaptateur Docker/MQTTS autour du serveur thermique du collègue."""
+import asyncio
 import json
 import threading
 import uuid
@@ -7,8 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import paho.mqtt.client as mqtt
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 import server
@@ -19,6 +20,7 @@ measurement_lock = threading.Lock()
 temperature = 25.0
 stop = threading.Event()
 last_error = None
+last_sample = None
 
 
 class Temperature(BaseModel):
@@ -27,6 +29,7 @@ class Temperature(BaseModel):
 
 
 def measure(value):
+    global last_sample
     if not client.is_connected():
         raise RuntimeError('MQTT déconnecté')
     with measurement_lock:
@@ -43,6 +46,7 @@ def measure(value):
         publication.wait_for_publish(timeout=3)
         if not publication.is_published():
             raise RuntimeError('Publication MQTT non confirmée')
+        last_sample = {**result, 'published_at': payload['observed_at']}
         return result
 
 
@@ -86,7 +90,17 @@ def control():
 @app.get('/simulation')
 def simulation_status():
     return {'temperature': temperature, 'mqtt_connected': client.is_connected(),
-            'error': last_error}
+            'error': last_error, 'sample': last_sample}
+
+
+@app.get('/live')
+async def live(request: Request):
+    async def events():
+        while not await request.is_disconnected():
+            yield 'data: ' + json.dumps(simulation_status(), ensure_ascii=False) + '\n\n'
+            await asyncio.sleep(1)
+    return StreamingResponse(events(), media_type='text/event-stream',
+                             headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
 
 
 @app.post('/simulation')
