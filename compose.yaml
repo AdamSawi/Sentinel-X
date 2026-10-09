@@ -81,6 +81,26 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+  simulation:
+    <<: *runtime
+    build: ./simulation
+    depends_on:
+      backend:
+        condition: service_healthy
+    volumes:
+      - credentials:/run/sentinel:ro
+      - simulation-data:/data
+    ports:
+      - '127.0.0.1:${SIMULATION_PORT:-8091}:8091'
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ['CMD', 'python', '-c', 'import json, urllib.request; data=json.load(urllib.request.urlopen("http://localhost:8091/simulation", timeout=3)); assert data["mqtt_connected"] and data["error"] is None']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
   vision:
     <<: *runtime
     build: ./modeles-ia
@@ -137,6 +157,7 @@ services:
       timeout: 5s
       retries: 3
 volumes:
+  simulation-data:
   credentials:
   database:
   mqtt-data:

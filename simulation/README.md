@@ -10,4 +10,18 @@ Les commandes modifient les états virtuels LED/buzzer et produisent un accusé 
 
 Distinguer temps du scénario et temps réel de réception, notamment en lecture accélérée. Utiliser des identifiants de messages et d’exécutions pour relier les événements.
 
-Aucun simulateur n’est encore implémenté. Voir le [guide](../docs/simulation.md).
+## Simulation thermique intégrée
+
+Le service Docker reprend `server.py` et `index.html` du collègue. `integration.py` ajoute MQTTS et le réglage de la température sans modifier son modèle.
+
+```sh
+docker compose up --build -d --wait
+```
+
+Dans Grafana (http://localhost:3000), le panneau **SIMULATION** permet de déplacer le curseur de 0 à 100 °C. Relâcher le curseur applique la consigne. Le contrôle est aussi accessible sur http://localhost:8091/control et le dashboard original sur http://localhost:8091/dashboard/.
+
+Une mesure est publiée chaque seconde : simulation → MQTTS → backend → PostgreSQL → Grafana (rafraîchissement toutes les cinq secondes). La consigne initiale est 25 °C et revient à cette valeur au redémarrage. Le panneau de dernière mesure affiche une absence de données après dix secondes sans réception.
+
+La base SQLite et la prédiction du collègue restent dans le volume `simulation-data` ; les mesures Grafana sont conservées dans PostgreSQL.
+
+Pour démontrer la chaîne : régler 25 °C, puis 50 °C, puis 80 °C, et vérifier la dernière valeur et la courbe dans Grafana. Le seuil thermique du modèle original est 70 °C.

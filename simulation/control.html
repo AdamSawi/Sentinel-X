@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="fr">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Simulation thermique</title>
+<style>
+body{background:#111217;color:#eee;font:16px system-ui;margin:18px}input{width:100%}output{font-size:30px}button{padding:8px;margin-top:12px}#status{font-size:13px}
+</style>
+<h3>Capteur de température simulé</h3>
+<output id="value">25 °C</output>
+<input id="temperature" aria-label="Température simulée" type="range" min="0" max="100" step="1" value="25">
+<button id="apply">Appliquer la température</button>
+<p>Mesure publiée chaque seconde · seuil du modèle : 70 °C</p>
+<p id="status">Connexion…</p>
+<script>
+const slider=document.querySelector('#temperature'),value=document.querySelector('#value'),status=document.querySelector('#status');
+slider.oninput=()=>value.textContent=slider.value+' °C';
+async function refresh(){
+  try{
+    const response=await fetch('/simulation');
+    if(!response.ok)throw Error('HTTP '+response.status);
+    const state=await response.json();
+    status.textContent=state.error|| (state.mqtt_connected?'MQTTS connecté · consigne '+state.temperature+' °C':'Connexion MQTTS…');
+  }catch(error){status.textContent=error.message;}
+}
+async function apply(){
+  try{
+    const response=await fetch('/simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({temperature:Number(slider.value)})});
+    if(!response.ok)throw Error('HTTP '+response.status);
+    await refresh();
+  }catch(error){status.textContent=error.message;}
+}
+slider.onchange=apply;
+document.querySelector('#apply').onclick=apply;
+fetch('/simulation').then(r=>r.json()).then(s=>{slider.value=s.temperature;value.textContent=s.temperature+' °C';}).catch(()=>{});
+refresh();setInterval(refresh,2000);
+</script>
+</html>

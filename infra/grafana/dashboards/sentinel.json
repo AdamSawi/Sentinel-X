@@ -3,7 +3,7 @@
   "title": "Sentinel-X · Centre de contrôle",
   "tags": ["sentinel", "monitoring", "vision"],
   "schemaVersion": 39,
-  "version": 2,
+  "version": 3,
   "editable": false,
   "refresh": "5s",
   "timezone": "browser",
@@ -102,6 +102,23 @@
       "targets": [{"refId": "A", "rawSql": "SELECT to_timestamp(received_at) AS heure, reason AS motif, transport FROM security_events WHERE $__unixEpochFilter(received_at) ORDER BY received_at DESC LIMIT 50", "format": "table", "rawQuery": true}],
       "fieldConfig": {"defaults": {}, "overrides": []},
       "options": {"showHeader": true}
+    },
+    {
+      "id": 9,
+      "title": "SIMULATION · faire varier la température",
+      "type": "text",
+      "gridPos": {"x": 0, "y": 27, "w": 12, "h": 7},
+      "options": {"mode": "html", "content": "<iframe src=\"http://localhost:8091/control\" title=\"Simulation thermique\" style=\"width:100%;height:100%;border:0\"></iframe>"}
+    },
+    {
+      "id": 10,
+      "title": "Température simulée · dernière mesure reçue",
+      "type": "stat",
+      "gridPos": {"x": 12, "y": 27, "w": 12, "h": 7},
+      "datasource": {"type": "grafana-postgresql-datasource", "uid": "sentinel-postgres"},
+      "targets": [{"refId": "A", "rawSql": "SELECT (payload->>'temperature_c')::double precision AS temperature FROM observations WHERE kind='telemetry' AND device='thermal-simulator' AND received_at > extract(epoch FROM now())-10 ORDER BY received_at DESC LIMIT 1", "format": "table", "rawQuery": true}],
+      "fieldConfig": {"defaults": {"unit": "celsius", "noValue": "Aucune mesure récente", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 60}, {"color": "red", "value": 70}]}}, "overrides": []},
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none"}
     }
   ],
   "annotations": {"list": []}
